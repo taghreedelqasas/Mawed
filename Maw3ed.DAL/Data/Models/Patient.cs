@@ -1,0 +1,30 @@
+﻿using Maw3ed.DAL;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace Maw3ed.DAL
+{
+    public class Patient : AuditableEntity
+    {
+        public int Id { get; set; }
+
+        public string? MedicalHistory { get; set; }
+
+        public string UserId { get; set; }
+
+        public ApplicationUser User { get; set; }
+
+        public ICollection<Appointment> Appointments { get; set; }
+            = new List<Appointment>();
+
+        public ICollection<Review> Reviews { get; set; }
+            = new List<Review>();
+
+        public ICollection<Conversation> Conversations { get; set; }
+        = new List<Conversation>();
+
+        public ICollection<ChatSession> ChatSessions { get; set; }
+            = new List<ChatSession>();
+    }
+}

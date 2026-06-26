@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Maw3ed.BLL/Maw3ed.BLL.csproj" />
+  <Project Path="Maw3ed.DAL/Maw3ed.DAL.csproj" />
+  <Project Path="Maw3ed/Maw3ed.APIs.csproj" />
+</Solution>
