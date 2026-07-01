@@ -8,6 +8,6 @@ namespace Maw3ed.DAL.Reposatries.Interfaces
     {
         IGenaricReposatry<TEntity> GetReposatry<TEntity>() where TEntity :class;
 
-        int SaveChanges();
+        Task<int> SaveChangesAsync();
     }
 }
