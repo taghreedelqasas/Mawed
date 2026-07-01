@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-
+using System.Threading.Tasks;
 namespace Maw3ed.DAL.Reposatries.Classes
 {
     public class UnitOfWork : IUnitOfWork
@@ -29,9 +29,9 @@ namespace Maw3ed.DAL.Reposatries.Classes
 
         }
 
-        public int SaveChanges()
+        public async Task<int> SaveChangesAsync()
         {
-            return _dbcontext.SaveChanges();
+            return  await _dbcontext.SaveChangesAsync();
         }
     }
 
