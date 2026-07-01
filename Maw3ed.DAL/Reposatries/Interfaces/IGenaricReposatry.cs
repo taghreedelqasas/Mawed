@@ -1,23 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq.Expressions;
+using System.Threading.Tasks;
 
 namespace Maw3ed.DAL.Reposatries.Interfaces
 {
-    public interface IGenaricReposatry<TEntity>  where TEntity : class
+    public interface IGenaricReposatry<TEntity> where TEntity : class
     {
-        //GetALL
-        IEnumerable<TEntity> GetAll(Func<TEntity, bool>? Condition = null);
+        Task<IEnumerable<TEntity>> GetAllAsync(Expression<Func<TEntity, bool>>? condition = null); // تعديل هنا
 
-        //getById
-
-        TEntity? GetById(int id);
-        //Add 
+        Task<TEntity?> GetByIdAsync(int id); // تعديل هنا
 
         void Add(TEntity tentity);
-        //update
         void Update(TEntity tentity);
-        //Delete
         void Delete(TEntity tentity);
+
+        Task<IEnumerable<TEntity>> GetAllAsync( // تعديل هنا
+            Expression<Func<TEntity, bool>>? condition = null,
+            params Expression<Func<TEntity, object>>[] includes);
     }
 }
