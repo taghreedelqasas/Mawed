@@ -7,32 +7,32 @@ namespace Maw3ed.DAL.Reposatries.Classes
 {
     public class UnitOfWork : IUnitOfWork
     {
-        private readonly AppDbContext _dbcontext;
+        private readonly AppDbContext _context;
+        private readonly Dictionary<Type, object> _repositories = new();
 
-        public UnitOfWork(AppDbContext dbcontext)
+        public UnitOfWork(AppDbContext context)
         {
-            _dbcontext = dbcontext;
+            _context = context;
         }
-        private readonly Dictionary<Type, Object> _reposatries = new Dictionary<Type, object>();
 
-        public IGenaricReposatry<TEntity> GetReposatry<TEntity>() where TEntity : class
+        public IGenericRepository<TEntity> GetRepository<TEntity>()
+            where TEntity : class
         {
+            var type = typeof(TEntity);
 
-            var EntityType = typeof(TEntity);
-            if (_reposatries.TryGetValue(EntityType, out var Repo))
-                return (IGenaricReposatry<TEntity>)Repo;
+            if (_repositories.TryGetValue(type, out var repo))
+                return (IGenericRepository<TEntity>)repo;
 
-            var newRepo = new GenaricReposatry<TEntity>(_dbcontext);
-            _reposatries[EntityType] = newRepo;
+            var newRepo = new GenericRepository<TEntity>(_context);
+            _repositories[type] = newRepo;
             return newRepo;
-
-
         }
 
-        public int SaveChanges()
-        {
-            return _dbcontext.SaveChanges();
-        }
+        public async Task<int> SaveChangesAsync()
+            => await _context.SaveChangesAsync();
+
+        public void Dispose()
+            => _context.Dispose();
     }
 
 }

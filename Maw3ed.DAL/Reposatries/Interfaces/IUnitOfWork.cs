@@ -4,10 +4,9 @@ using System.Text;
 
 namespace Maw3ed.DAL.Reposatries.Interfaces
 {
-    public interface IUnitOfWork
+    public interface IUnitOfWork : IDisposable
     {
-        IGenaricReposatry<TEntity> GetReposatry<TEntity>() where TEntity :class;
-
-        int SaveChanges();
+        IGenericRepository<TEntity> GetRepository<TEntity>() where TEntity : class;
+        Task<int> SaveChangesAsync();
     }
 }
