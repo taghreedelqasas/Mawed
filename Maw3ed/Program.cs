@@ -1,5 +1,13 @@
-
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+using System.Linq.Expressions;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 using Maw3ed.APIs.Hubs;
 using Maw3ed.BLL.Services.Classes;
 using Maw3ed.BLL.Services.Interfaces;
@@ -8,11 +16,9 @@ using Maw3ed.DAL;
 using Maw3ed.DAL.Reposatries.Classes;
 using Maw3ed.DAL.Reposatries.Interfaces;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
-using Microsoft.AspNetCore.Identity;
 using Maw3ed.DAL.DoctorDev.DoctorManager;
-using Scalar.AspNetCore;
 
-namespace Maw3ed
+namespace Maw3ed.APIs
 {
     public class Program
     {
@@ -20,7 +26,11 @@ namespace Maw3ed
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // DAL
+            // ==========================================================
+            // 1. REGISTRATION OF SERVICES (Dependency Injection Container)
+            // ==========================================================
+
+            // DAL Services
             builder.Services.AddDALServices(builder.Configuration);
 
             #region Services Merna
@@ -33,14 +43,43 @@ namespace Maw3ed
 
             // Identity
             builder.Services
-                .AddIdentity<ApplicationUser, ApplicationRole>()
+                .AddIdentity<ApplicationUser, ApplicationRole>(options =>
+                {
+                    options.Password.RequireDigit = true;
+                    options.Password.RequiredLength = 8;
+                    options.Password.RequireNonAlphanumeric = false;
+                })
                 .AddEntityFrameworkStores<AppDbContext>()
                 .AddDefaultTokenProviders();
+
+            // إعدادات الـ JWT Authentication للمواعيد
+            var jwtKey = builder.Configuration["Jwt:Key"]
+                ?? throw new InvalidOperationException("Jwt:Key missing in appsettings.json");
+
+            builder.Services
+                .AddAuthentication(opt =>
+                {
+                    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(opt =>
+                {
+                    opt.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                        ValidAudience = builder.Configuration["Jwt:Audience"],
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+                    };
+                });
 
             // Controllers
             builder.Services.AddControllers();
 
-            // OpenAPI
+            // OpenAPI (تعتمد عليها Scalar)
             builder.Services.AddOpenApi();
 
             // SignalR
@@ -58,12 +97,17 @@ namespace Maw3ed
                 });
             });
 
+            // المجر الخاص بالأطباء والـ Unit of Work
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IDoctorAvailabilityManager, DoctorAvailabilityManager>();
             builder.Services.AddScoped<IDoctorManager, DoctorManagerClasses>();
+
+            // ==========================================================
+            // 2. HTTP REQUEST PIPELINE (Middlewares)
+            // ==========================================================
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline
+            // تفعيل الـ Scalar والـ OpenAPI في بيئة التطوير
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
@@ -72,9 +116,13 @@ namespace Maw3ed
 
             app.UseStaticFiles();
             app.UseCors("AllowAll");
+            
             app.UseHttpsRedirection();
-            app.UseAuthentication();
-            app.UseAuthorization();
+            
+            // ترتيب الـ Authentication والـ Authorization حرج جداً للـ [Authorize]
+            app.UseAuthentication(); 
+            app.UseAuthorization();  
+
             app.MapHub<ChatHub>("/hubs/chat");
             app.MapControllers();
             app.Run();
