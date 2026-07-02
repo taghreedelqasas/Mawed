@@ -1,12 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+
 namespace Maw3ed.DAL.Reposatries.Interfaces
 {
-    public interface IUnitOfWork
+    public interface IUnitOfWork : IDisposable
     {
-        IGenaricReposatry<TEntity> GetReposatry<TEntity>() where TEntity :class;
+        IGenericRepository<TEntity> GetRepository<TEntity>() where TEntity : class;
 
         Task<int> SaveChangesAsync();
     }

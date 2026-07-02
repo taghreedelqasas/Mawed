@@ -1,4 +1,4 @@
-﻿using Maw3ed.DAL.Reposatries.Interfaces;
+using Maw3ed.DAL.Reposatries.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -8,30 +8,39 @@ using System.Threading.Tasks;
 
 namespace Maw3ed.DAL.Reposatries.Classes
 {
-    public class GenaricReposatry<TEntity> : IGenaricReposatry<TEntity> where TEntity : class
+    public class GenericRepository<TEntity> : IGenericRepository<TEntity> where TEntity : class
     {
-        private readonly AppDbContext _dbcontext;
+        private readonly AppDbContext _context;
 
-        public GenaricReposatry(AppDbContext dbcontext)
+        public GenericRepository(AppDbContext context)
         {
-            _dbcontext = dbcontext;
+            _context = context;
         }
 
-        public void Add(TEntity tentity)
-        {
-            _dbcontext.Set<TEntity>().Add(tentity);
-        }
+        public async Task<TEntity?> GetByIdAsync(int id)
+            => await _context.Set<TEntity>().FindAsync(id);
 
-        public void Delete(TEntity tentity)
-        {
-            _dbcontext.Set<TEntity>().Remove(tentity);
-        }
+        public async Task<IEnumerable<TEntity>> GetAllAsync()
+            => await _context.Set<TEntity>().AsNoTracking().ToListAsync();
 
-        public async Task<IEnumerable<TEntity>> GetAllAsync( // تعديل هنا
+        public async Task<IEnumerable<TEntity>> FindAsync(Expression<Func<TEntity, bool>> condition)
+            => await _context.Set<TEntity>().AsNoTracking().Where(condition).ToListAsync();
+
+        public async Task AddAsync(TEntity entity)
+            => await _context.Set<TEntity>().AddAsync(entity);
+
+        public void Update(TEntity entity)
+            => _context.Set<TEntity>().Update(entity);
+
+        public void Delete(TEntity entity)
+            => _context.Set<TEntity>().Remove(entity);
+
+        // دمج دالة الـ Includes مع تصحيح المتغيرات لـ _context
+        public async Task<IEnumerable<TEntity>> GetAllAsync(
             Expression<Func<TEntity, bool>>? condition = null,
             params Expression<Func<TEntity, object>>[] includes)
         {
-            IQueryable<TEntity> query = _dbcontext.Set<TEntity>();
+            IQueryable<TEntity> query = _context.Set<TEntity>();
 
             foreach (var include in includes)
             {
@@ -43,20 +52,12 @@ namespace Maw3ed.DAL.Reposatries.Classes
                 query = query.Where(condition);
             }
 
-            return await query.AsNoTracking().ToListAsync(); // تعديل هنا
+            return await query.AsNoTracking().ToListAsync();
         }
 
-        public async Task<IEnumerable<TEntity>> GetAllAsync(Expression<Func<TEntity, bool>>? condition = null) // تعديل هنا
+        public async Task<IEnumerable<TEntity>> GetAllAsync(Expression<Func<TEntity, bool>>? condition = null)
         {
             return await GetAllAsync(condition, Array.Empty<Expression<Func<TEntity, object>>>());
-        }
-
-        public async Task<TEntity?> GetByIdAsync(int id) // تعديل هنا
-         => await _dbcontext.Set<TEntity>().FindAsync(id);
-
-        public void Update(TEntity tentity)
-        {
-            _dbcontext.Set<TEntity>().Update(tentity);
         }
     }
 }
