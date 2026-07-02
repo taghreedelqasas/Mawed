@@ -1,7 +1,8 @@
-﻿using Maw3ed.DAL.Reposatries.Interfaces;
+using Maw3ed.DAL.Reposatries.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Maw3ed.DAL.Reposatries.Classes
 {
@@ -34,5 +35,4 @@ namespace Maw3ed.DAL.Reposatries.Classes
         public void Dispose()
             => _context.Dispose();
     }
-
 }

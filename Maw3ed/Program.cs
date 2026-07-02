@@ -5,7 +5,11 @@ using Maw3ed.BLL.Services.Classes;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.BLL.Validators;
 using Maw3ed.DAL;
+using Maw3ed.DAL.Reposatries.Classes;
+using Maw3ed.DAL.Reposatries.Interfaces;
+using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Microsoft.AspNetCore.Identity;
+using Maw3ed.DAL.DoctorDev.DoctorManager;
 using Scalar.AspNetCore;
 
 namespace Maw3ed
@@ -54,6 +58,9 @@ namespace Maw3ed
                 });
             });
 
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<IDoctorAvailabilityManager, DoctorAvailabilityManager>();
+            builder.Services.AddScoped<IDoctorManager, DoctorManagerClasses>();
             var app = builder.Build();
 
             // Configure the HTTP request pipeline
@@ -64,7 +71,7 @@ namespace Maw3ed
             }
 
             app.UseStaticFiles();
-            app.UseCors("AllowAll"); // ·«“„ ÌﬂÊ‰ ﬁ»· UseAuthorization
+            app.UseCors("AllowAll");
             app.UseHttpsRedirection();
             app.UseAuthentication();
             app.UseAuthorization();
