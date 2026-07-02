@@ -20,7 +20,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
         public async Task<IEnumerable<DoctorReadDTo>> GetAllAsync()
         {
             var doctors = await _unitOfWork
-                .GetReposatry<Doctor>()
+                .GetRepository<Doctor>()
                 .GetAllAsync(null, d => d.Department, d => d.User);
 
             return doctors.Select(d => new DoctorReadDTo
@@ -39,7 +39,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
         public async Task<DoctorReadDTo?> GetByIdAsync(int id)
         {
             var doctor = await _unitOfWork
-                .GetReposatry<Doctor>()
+                .GetRepository<Doctor>()
                 .GetByIdAsync(id);
 
             if (doctor == null)
@@ -73,13 +73,13 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 ImageProfile = doctorDto.ImageProfile // تعديل هنا لحفظ الصورة الجديدة
             };
 
-            _unitOfWork.GetReposatry<Doctor>().Add(doctor);
+           await  _unitOfWork.GetRepository<Doctor>().AddAsync(doctor);
             await _unitOfWork.SaveChangesAsync();
         }
 
         public async Task UpdateAsync(DoctorUpdateDto doctorDto)
         {
-            var existingDoctor = await _unitOfWork.GetReposatry<Doctor>().GetByIdAsync(doctorDto.Id);
+            var existingDoctor = await _unitOfWork.GetRepository<Doctor>().GetByIdAsync(doctorDto.Id);
 
             if (existingDoctor == null)
                 throw new Exception("Doctor not found");
@@ -94,17 +94,17 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
             // تعديل هنا لتحديث مسار الصورة الجديدة في حال تم تغييرها
             existingDoctor.ImageProfile = doctorDto.ImageProfile;
 
-            _unitOfWork.GetReposatry<Doctor>().Update(existingDoctor);
+            _unitOfWork.GetRepository<Doctor>().Update(existingDoctor);
             await _unitOfWork.SaveChangesAsync();
         }
 
         public async Task DeleteAsync(int id)
         {
-            var doctor = await _unitOfWork.GetReposatry<Doctor>().GetByIdAsync(id);
+            var doctor = await _unitOfWork.GetRepository<Doctor>().GetByIdAsync(id);
 
             if (doctor != null)
             {
-                _unitOfWork.GetReposatry<Doctor>().Delete(doctor);
+                _unitOfWork.GetRepository<Doctor>().Delete(doctor);
                 await _unitOfWork.SaveChangesAsync();
             }
         }

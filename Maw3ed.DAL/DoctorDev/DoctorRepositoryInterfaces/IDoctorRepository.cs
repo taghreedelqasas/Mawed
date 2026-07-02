@@ -7,7 +7,7 @@ using Maw3ed.DAL.Reposatries.Classes;
 using Maw3ed.DAL.Reposatries.Interfaces;
 namespace Maw3ed.DAL.DoctorDev.DoctorRepositoryInterfaces
 {
-     public  interface IDoctorRepository:IGenaricReposatry<Doctor>
+     public  interface IDoctorRepository: IGenericRepository<Doctor>
     {
 
     }

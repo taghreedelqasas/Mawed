@@ -56,7 +56,7 @@ namespace Maw3ed.BLL.Services.Classes
                 ReviewDate = DateTime.UtcNow
             };
 
-            _unitOfWork.GetReposatry<Review>().Add(review);
+             await _unitOfWork.GetRepository<Review>().AddAsync(review);
             await _unitOfWork.SaveChangesAsync();   // FIX: async
 
             return new(true, "Review submitted successfully.", MapToResponse(review, patient, doctor));
@@ -86,7 +86,7 @@ namespace Maw3ed.BLL.Services.Classes
 
             review.Rating  = dto.Rating;
             review.Comment = dto.Comment;
-            _unitOfWork.GetReposatry<Review>().Update(review);
+            _unitOfWork.GetRepository<Review>().Update(review);
             await _unitOfWork.SaveChangesAsync();   // FIX: async
 
             return new(true, "Review updated successfully.", MapToResponse(review, review.Patient, review.Doctor));
@@ -110,7 +110,7 @@ namespace Maw3ed.BLL.Services.Classes
             if (review.PatientId != patient.Id)
                 return new(false, "You are not allowed to delete this review.", ServiceError.Forbidden);
 
-            _unitOfWork.GetReposatry<Review>().Delete(review);
+            _unitOfWork.GetRepository<Review>().Delete(review);
             await _unitOfWork.SaveChangesAsync();   // FIX: async
 
             return new(true, "Review deleted successfully.");
@@ -180,7 +180,7 @@ namespace Maw3ed.BLL.Services.Classes
             if (review is null)
                 return new(false, "Review not found.", ServiceError.NotFound);
 
-            _unitOfWork.GetReposatry<Review>().Delete(review);
+            _unitOfWork.GetRepository<Review>().Delete(review);
             await _unitOfWork.SaveChangesAsync();   // FIX: async
 
             return new(true, "Review deleted by admin.");

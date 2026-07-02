@@ -87,8 +87,8 @@ namespace Maw3ed.BLL.Services.Classes
             };
 
             slot.IsBooked = true;
-            _unitOfWork.GetReposatry<Appointment>().Add(appointment);
-            _unitOfWork.GetReposatry<DoctorAvailability>().Update(slot);
+            await _unitOfWork.GetRepository<Appointment>().AddAsync(appointment);
+            _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);
             await _unitOfWork.SaveChangesAsync();
 
             // FIX: بدل ما نعمل Reference loading على entity قد تكون null
@@ -131,8 +131,8 @@ namespace Maw3ed.BLL.Services.Classes
             appointment.Status = AppointmentStatus.Cancelled;
             appointment.DoctorAvailability.IsBooked = false;
 
-            _unitOfWork.GetReposatry<Appointment>().Update(appointment);
-            _unitOfWork.GetReposatry<DoctorAvailability>().Update(appointment.DoctorAvailability);
+            _unitOfWork.GetRepository<Appointment>().Update(appointment);
+            _unitOfWork.GetRepository<DoctorAvailability>().Update(appointment.DoctorAvailability);
             await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Appointment cancelled successfully.");
@@ -178,9 +178,9 @@ namespace Maw3ed.BLL.Services.Classes
             appointment.DoctorAvailabilityId = newSlot.Id;
             appointment.Status               = AppointmentStatus.Pending;
 
-            _unitOfWork.GetReposatry<Appointment>().Update(appointment);
-            _unitOfWork.GetReposatry<DoctorAvailability>().Update(oldSlot);
-            _unitOfWork.GetReposatry<DoctorAvailability>().Update(newSlot);
+            _unitOfWork.GetRepository<Appointment>().Update(appointment);
+            _unitOfWork.GetRepository<DoctorAvailability>().Update(oldSlot);
+            _unitOfWork.GetRepository<DoctorAvailability>().Update(newSlot);
             await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Appointment rescheduled successfully.", MapToResponse(appointment, newSlot));
@@ -234,7 +234,7 @@ namespace Maw3ed.BLL.Services.Classes
                 return new(false, $"Appointment is already {appointment.Status}.", ServiceError.Conflict);
 
             appointment.Status = AppointmentStatus.Confirmed;
-            _unitOfWork.GetReposatry<Appointment>().Update(appointment);
+            _unitOfWork.GetRepository<Appointment>().Update(appointment);
             await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Appointment confirmed.");
@@ -256,7 +256,7 @@ namespace Maw3ed.BLL.Services.Classes
                 return new(false, "Only confirmed appointments can be completed.", ServiceError.BadRequest);
 
             appointment.Status = AppointmentStatus.Completed;
-            _unitOfWork.GetReposatry<Appointment>().Update(appointment);
+            _unitOfWork.GetRepository<Appointment>().Update(appointment);
             await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Appointment marked as completed.");

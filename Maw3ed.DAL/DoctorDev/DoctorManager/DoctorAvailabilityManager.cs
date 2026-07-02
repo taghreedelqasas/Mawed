@@ -27,7 +27,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
         public async Task<List<DoctorAvailability>> GetByDoctorAsync(int doctorId) // تعديل هنا
         {
             var result = await _unitOfWork
-                .GetReposatry<DoctorAvailability>()
+                .GetRepository<DoctorAvailability>()
                 .GetAllAsync(x => x.DoctorId == doctorId); // تعديل هنا
 
             return result.OrderBy(x => x.StartTime).ToList();
@@ -36,7 +36,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
         public async Task<List<DoctorAvailability>> GetAvailableSlotsAsync(int doctorId, DateTime? date = null) // تعديل هنا
         {
             var result = await _unitOfWork
-                .GetReposatry<DoctorAvailability>()
+                .GetRepository<DoctorAvailability>()
                 .GetAllAsync(x =>
                     x.DoctorId == doctorId &&
                     !x.IsBooked &&
@@ -47,7 +47,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
 
         public async Task<DoctorAvailability> GetByIdAsync(int id) // تعديل هنا
         {
-            var slot = await _unitOfWork.GetReposatry<DoctorAvailability>().GetByIdAsync(id); // تعديل هنا
+            var slot = await _unitOfWork.GetRepository<DoctorAvailability>().GetByIdAsync(id); // تعديل هنا
 
             if (slot == null)
                 throw new Exception("Availability slot not found.");
@@ -62,7 +62,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
             if (slot.IsBooked)
                 throw new Exception("Cannot delete a booked slot.");
 
-            _unitOfWork.GetReposatry<DoctorAvailability>().Delete(slot);
+            _unitOfWork.GetRepository<DoctorAvailability>().Delete(slot);
             await _unitOfWork.SaveChangesAsync(); // تعديل هنا
         }
 
@@ -91,7 +91,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 throw new Exception($"Duration must be divisible by 20 minutes for {startTime.Date:yyyy-MM-dd}.");
 
             var existingSlots = await _unitOfWork
-                .GetReposatry<DoctorAvailability>()
+                .GetRepository<DoctorAvailability>()
                 .GetAllAsync(x =>
                     x.DoctorId == doctorId &&
                     x.StartTime.Date == startTime.Date); // تعديل هنا
@@ -118,7 +118,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                     IsBooked = false
                 };
 
-                _unitOfWork.GetReposatry<DoctorAvailability>().Add(availability);
+                 await  _unitOfWork.GetRepository<DoctorAvailability>().AddAsync(availability);
 
                 currentStart = currentEnd;
             }
@@ -126,7 +126,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
 
         public async Task UpdateAsync(UpdateDoctorAvailabilityDto dto) // تعديل هنا
         {
-            var slot = await _unitOfWork.GetReposatry<DoctorAvailability>().GetByIdAsync(dto.Id); // تعديل هنا
+            var slot = await _unitOfWork.GetRepository<DoctorAvailability>().GetByIdAsync(dto.Id); // تعديل هنا
 
             if (slot == null)
                 throw new Exception("Availability slot not found.");
@@ -143,7 +143,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 throw new Exception("Slot duration must be exactly 20 minutes.");
 
             var existingSlots = await _unitOfWork
-                .GetReposatry<DoctorAvailability>()
+                .GetRepository<DoctorAvailability>()
                 .GetAllAsync(x =>
                     x.DoctorId == slot.DoctorId &&
                     x.Id != dto.Id &&
@@ -158,7 +158,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
             slot.StartTime = dto.StartTime;
             slot.EndTime = dto.EndTime;
 
-            _unitOfWork.GetReposatry<DoctorAvailability>().Update(slot);
+            _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);
             await _unitOfWork.SaveChangesAsync(); // تعديل هنا
         }
     }
