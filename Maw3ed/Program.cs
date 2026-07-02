@@ -1,16 +1,22 @@
+using System;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
+using System.Linq.Expressions;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-
-// ── الاستدعاء الصحيح 100% حسب الفولدرات اللي على اليمين ──
-using Maw3ed.DAL;                                 // عشان الـ AddDALServices
-using Maw3ed.BLL;                                 // عشان الـ AddBLLServices
-using Maw3ed.DAL.Reposatries.Interfaces;          // لأن الـ Interfaces جوة الـ Repositories
-using Maw3ed.DAL;                // لأن الـ Context جوة الـ Data
-//using Maw3ed.DAL.Data.Models;            // المسار الصحيح للـ ApplicationUser والـ ApplicationRole
-using Maw3ed.BLL.ServiceExtension;
+using Scalar.AspNetCore;
+using Maw3ed.APIs.Hubs;
+using Maw3ed.BLL.Services.Classes;
+using Maw3ed.BLL.Services.Interfaces;
+using Maw3ed.BLL.Validators;
+using Maw3ed.DAL;
+using Maw3ed.DAL.Reposatries.Classes;
+using Maw3ed.DAL.Reposatries.Interfaces;
+using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
+using Maw3ed.DAL.DoctorDev.DoctorManager;
 
 namespace Maw3ed.APIs
 {
@@ -24,13 +30,18 @@ namespace Maw3ed.APIs
             // 1. REGISTRATION OF SERVICES (Dependency Injection Container)
             // ==========================================================
 
-            // ── الـ DAL Services (DbContext + UnitOfWork + Repositories) ──
+            // DAL Services
             builder.Services.AddDALServices(builder.Configuration);
 
-            // ── الـ BLL Services (Business Logic Services) ──
-            builder.Services.AddBLLServices();
+            #region Services Merna
+            builder.Services.AddScoped<IMedicalFileService, MedicalFileService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddValidatorsFromAssemblyContaining<UpdateUserProfileDtoValidator>();
+            builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+            builder.Services.AddScoped<IConversationService, ConversationService>();
+            #endregion
 
-            // ── نظام الـ Identity لإدارة المستخدمين والأدوار ──
+            // Identity
             builder.Services
                 .AddIdentity<ApplicationUser, ApplicationRole>(options =>
                 {
@@ -41,7 +52,7 @@ namespace Maw3ed.APIs
                 .AddEntityFrameworkStores<AppDbContext>()
                 .AddDefaultTokenProviders();
 
-            // ── إعدادات الـ JWT Authentication ──
+            // إعدادات الـ JWT Authentication للمواعيد
             var jwtKey = builder.Configuration["Jwt:Key"]
                 ?? throw new InvalidOperationException("Jwt:Key missing in appsettings.json");
 
@@ -65,61 +76,55 @@ namespace Maw3ed.APIs
                     };
                 });
 
-            // ── إضافة الـ Controllers لخدمة الـ APIs ──
+            // Controllers
             builder.Services.AddControllers();
 
-            // ── إعداد الـ Swagger وتأمينه ليدعم إرسال الـ JWT Token ──
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen(c =>
+            // OpenAPI (تعتمد عليها Scalar)
+            builder.Services.AddOpenApi();
+
+            // SignalR
+            builder.Services.AddSignalR();
+
+            // CORS
+            builder.Services.AddCors(options =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Maw3ed API", Version = "v1" });
-
-                // إعداد شكل خانة الـ Authorize في Swagger UI
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                options.AddPolicy("AllowAll", policy =>
                 {
-                    Description = "أكتب في الخانة: Bearer {your_token}",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey,
-                    Scheme = "Bearer"
-                });
-
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        Array.Empty<string>()
-                    }
+                    policy.WithOrigins("null", "http://localhost")
+                          .AllowAnyMethod()
+                          .AllowAnyHeader()
+                          .AllowCredentials();
                 });
             });
+
+            // المجر الخاص بالأطباء والـ Unit of Work
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<IDoctorAvailabilityManager, DoctorAvailabilityManager>();
+            builder.Services.AddScoped<IDoctorManager, DoctorManagerClasses>();
 
             // ==========================================================
             // 2. HTTP REQUEST PIPELINE (Middlewares)
             // ==========================================================
             var app = builder.Build();
 
-            // تفعيل Swagger في بيئة التطوير فقط
+            // تفعيل الـ Scalar والـ OpenAPI في بيئة التطوير
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Maw3ed API v1"));
+                app.MapOpenApi();
+                app.MapScalarApiReference();
             }
 
+            app.UseStaticFiles();
+            app.UseCors("AllowAll");
+            
             app.UseHttpsRedirection();
+            
+            // ترتيب الـ Authentication والـ Authorization حرج جداً للـ [Authorize]
+            app.UseAuthentication(); 
+            app.UseAuthorization();  
 
-            // ⚠️ الترتيب هنا إجباري وحرج جداً لعمل الـ [Authorize] بالشكل الصحيح
-            app.UseAuthentication(); // التحقق من الهوية (الـ Token) أولاً
-            app.UseAuthorization();  // التحقق من الصلاحيات ثانياً
-
+            app.MapHub<ChatHub>("/hubs/chat");
             app.MapControllers();
-
             app.Run();
         }
     }
