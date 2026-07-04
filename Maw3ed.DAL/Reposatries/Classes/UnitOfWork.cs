@@ -11,10 +11,12 @@ namespace Maw3ed.DAL.Reposatries.Classes
     {
         private readonly AppDbContext _context;
         private readonly Dictionary<Type, object> _repositories = new();
+        private IAuthRepository? _authRepository;
 
-        public UnitOfWork(AppDbContext context)
+        public UnitOfWork(AppDbContext context ,IAuthRepository authRepository)
         {
             _context = context;
+            _authRepository = authRepository;
         }
 
         public IGenericRepository<TEntity> GetRepository<TEntity>()
@@ -29,7 +31,7 @@ namespace Maw3ed.DAL.Reposatries.Classes
             _repositories[type] = newRepo;
             return newRepo;
         }
-
+        public IAuthRepository AuthRepository => _authRepository!;
         public async Task<int> SaveChangesAsync()
             => await _context.SaveChangesAsync();
 

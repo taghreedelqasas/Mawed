@@ -8,7 +8,8 @@ namespace Maw3ed.DAL.Reposatries.Interfaces
     public interface IUnitOfWork : IDisposable
     {
         IGenericRepository<TEntity> GetRepository<TEntity>() where TEntity : class;
-
+      
+        IAuthRepository AuthRepository { get; }
         Task<int> SaveChangesAsync();
     }
 }

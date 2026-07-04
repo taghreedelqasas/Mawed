@@ -1,28 +1,29 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
-using System.Linq.Expressions;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.IdentityModel.Tokens;
-using Scalar.AspNetCore;
 using Maw3ed.APIs.Hubs;
+using Maw3ed.BLL;
 using Maw3ed.BLL.Services.Classes;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.BLL.Validators;
 using Maw3ed.DAL;
+using Maw3ed.DAL.DoctorDev.DoctorManager;
+using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Maw3ed.DAL.Reposatries.Classes;
 using Maw3ed.DAL.Reposatries.Interfaces;
-using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
-using Maw3ed.DAL.DoctorDev.DoctorManager;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
+using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Maw3ed.APIs
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +33,8 @@ namespace Maw3ed.APIs
 
             // DAL Services
             builder.Services.AddDALServices(builder.Configuration);
+            //BLL
+            builder.Services.AddBLLServices(builder.Configuration);
 
             #region Services Merna
             builder.Services.AddScoped<IMedicalFileService, MedicalFileService>();
@@ -41,18 +44,18 @@ namespace Maw3ed.APIs
             builder.Services.AddScoped<IConversationService, ConversationService>();
             #endregion
 
-            // Identity
-            builder.Services
-                .AddIdentity<ApplicationUser, ApplicationRole>(options =>
-                {
-                    options.Password.RequireDigit = true;
-                    options.Password.RequiredLength = 8;
-                    options.Password.RequireNonAlphanumeric = false;
-                })
-                .AddEntityFrameworkStores<AppDbContext>()
-                .AddDefaultTokenProviders();
+            //// Identity
+            //builder.Services
+            //    .AddIdentity<ApplicationUser, ApplicationRole>(options =>
+            //    {
+            //        options.Password.RequireDigit = true;
+            //        options.Password.RequiredLength = 8;
+            //        options.Password.RequireNonAlphanumeric = false;
+            //    })
+            //    .AddEntityFrameworkStores<AppDbContext>()
+            //    .AddDefaultTokenProviders();
 
-            // إعدادات الـ JWT Authentication للمواعيد
+            // إعدادات الـ JWT Authentication
             var jwtKey = builder.Configuration["Jwt:Key"]
                 ?? throw new InvalidOperationException("Jwt:Key missing in appsettings.json");
 
@@ -100,7 +103,7 @@ namespace Maw3ed.APIs
             // المجر الخاص بالأطباء والـ Unit of Work
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IDoctorAvailabilityManager, DoctorAvailabilityManager>();
-            builder.Services.AddScoped<IDoctorManager, DoctorManagerClasses>();
+            builder.Services.AddScoped<IDoctorManager, DoctorManager>();
 
             // ==========================================================
             // 2. HTTP REQUEST PIPELINE (Middlewares)
@@ -116,12 +119,12 @@ namespace Maw3ed.APIs
 
             app.UseStaticFiles();
             app.UseCors("AllowAll");
-            
+
             app.UseHttpsRedirection();
-            
+
             // ترتيب الـ Authentication والـ Authorization حرج جداً للـ [Authorize]
-            app.UseAuthentication(); 
-            app.UseAuthorization();  
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             app.MapHub<ChatHub>("/hubs/chat");
             app.MapControllers();

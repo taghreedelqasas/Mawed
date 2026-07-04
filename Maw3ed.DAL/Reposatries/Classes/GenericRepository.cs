@@ -50,7 +50,7 @@ namespace Maw3ed.DAL.Reposatries.Classes
             if (condition != null)
             {
                 query = query.Where(condition);
-            }
+        }
 
             return await query.AsNoTracking().ToListAsync();
         }

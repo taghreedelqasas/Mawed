@@ -1,4 +1,5 @@
-﻿using Maw3ed.DAL.Reposatries.Interfaces;
+﻿using Maw3ed.DAL;
+using Maw3ed.DAL.Reposatries.Interfaces;
 using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using System;
@@ -6,15 +7,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Maw3ed.DAL.DoctorDev.DoctorManager
+namespace Maw3ed.BLL
 {
-    public class DoctorManagerClasses : IDoctorManager
+    public class DoctorManager : IDoctorManager
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IEmailService _emailService;
 
-        public DoctorManagerClasses(IUnitOfWork unitOfWork)
+        public DoctorManager(IUnitOfWork unitOfWork, IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
+            _emailService = emailService;
         }
 
         public async Task<IEnumerable<DoctorReadDTo>> GetAllAsync()
@@ -32,15 +35,19 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 IsVerified = d.IsVerified,
                 DepartmentName = d.Department?.Name ?? "",
                 UserName = d.User?.UserName ?? " ",
-                ImageProfile = d.ImageProfile // تعديل هنا لعرض الصورة
+                ImageProfile = d.ImageProfile
             });
         }
 
         public async Task<DoctorReadDTo?> GetByIdAsync(int id)
         {
-            var doctor = await _unitOfWork
+            // استخدام GetAllAsync بالـ includes بدل GetByIdAsync العادية
+            // عشان نضمن إن Department و User مش هيبقوا null
+            var doctors = await _unitOfWork
                 .GetRepository<Doctor>()
-                .GetByIdAsync(id);
+                .GetAllAsync(d => d.Id == id, d => d.Department, d => d.User);
+
+            var doctor = doctors.FirstOrDefault();
 
             if (doctor == null)
                 return null;
@@ -54,7 +61,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 IsVerified = doctor.IsVerified,
                 DepartmentName = doctor.Department?.Name ?? "",
                 UserName = doctor.User?.UserName ?? "",
-                ImageProfile = doctor.ImageProfile // تعديل هنا لعرض الصورة
+                ImageProfile = doctor.ImageProfile
             };
         }
 
@@ -70,10 +77,10 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 UserId = doctorDto.UserId,
                 DepartmentId = doctorDto.DepartmentId,
                 IsVerified = false,
-                ImageProfile = doctorDto.ImageProfile // تعديل هنا لحفظ الصورة الجديدة
+                ImageProfile = doctorDto.ImageProfile
             };
 
-           await  _unitOfWork.GetRepository<Doctor>().AddAsync(doctor);
+            await _unitOfWork.GetRepository<Doctor>().AddAsync(doctor);
             await _unitOfWork.SaveChangesAsync();
         }
 
@@ -90,8 +97,6 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
             existingDoctor.Address = doctorDto.Address;
             existingDoctor.GraduationDate = doctorDto.GraduationDate;
             existingDoctor.DepartmentId = doctorDto.DepartmentId;
-
-            // تعديل هنا لتحديث مسار الصورة الجديدة في حال تم تغييرها
             existingDoctor.ImageProfile = doctorDto.ImageProfile;
 
             _unitOfWork.GetRepository<Doctor>().Update(existingDoctor);
@@ -107,6 +112,53 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 _unitOfWork.GetRepository<Doctor>().Delete(doctor);
                 await _unitOfWork.SaveChangesAsync();
             }
+        }
+
+        public async Task<List<DoctorPendingDto>> GetPendingDoctorsAsync()
+        {
+            var doctors = await _unitOfWork
+                .GetRepository<Doctor>()
+                .GetAllAsync(d => !d.IsVerified, d => d.User);
+
+            return doctors.Select(d => new DoctorPendingDto
+            {
+                UserId = d.UserId,
+                FullName = d.User.FirstName + " " + d.User.LastName,
+                Email = d.User.Email!,
+                PhoneNumber = d.User.PhoneNumber!,
+                LicenseNumber = d.LicenseNumber,
+                Certificate = d.Certificate,
+                ConsultationFee = d.ConsultationFee,
+                Address = d.Address,
+                GraduationDate = d.GraduationDate,
+                DepartmentId = d.DepartmentId,
+                RegisteredAt = d.CreatedAt
+            }).ToList();
+        }
+
+        public async Task<(bool Success, string Message)> ApproveDoctorAsync(string userId)
+        {
+            var doctors = await _unitOfWork
+                .GetRepository<Doctor>()
+                .GetAllAsync(d => d.UserId == userId, d => d.User);
+
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return (false, "Doctor not found.");
+
+            if (doctor.IsVerified)
+                return (false, "Doctor is already verified.");
+
+            doctor.IsVerified = true;
+            _unitOfWork.GetRepository<Doctor>().Update(doctor);
+            await _unitOfWork.SaveChangesAsync();
+
+            await _emailService.SendDoctorApprovalAsync(
+                toEmail: doctor.User.Email!,
+                toName: $"{doctor.User.FirstName} {doctor.User.LastName}");
+
+            return (true, "Doctor approved successfully.");
         }
     }
 }
