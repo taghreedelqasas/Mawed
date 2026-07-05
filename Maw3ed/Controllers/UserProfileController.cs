@@ -86,8 +86,5 @@ namespace Maw3ed.APIs.Controllers
                 return BadRequest(ex.Message);
             }
         }
-
-
-
     }
 }

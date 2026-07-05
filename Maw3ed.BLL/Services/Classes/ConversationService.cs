@@ -109,6 +109,22 @@ namespace Maw3ed.BLL.Services.Classes
                 .Select(m => MapMessageToDto(m));
         }
 
+        public async Task MarkMessagesAsReadAsync(int conversationId, string userId)
+        {
+            var messages = await _unitOfWork.GetRepository<Message>()
+                .FindAsync(m => m.ConversationId == conversationId
+                             && m.SenderUserId != userId
+                             && !m.IsRead);
+
+            foreach (var message in messages)
+            {
+                message.IsRead = true;
+                _unitOfWork.GetRepository<Message>().Update(message);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+        }
+        // باقي الكود زي ما هو
         // Helpers
         private ConversationDto MapToDto(Conversation c) => new ConversationDto
         {

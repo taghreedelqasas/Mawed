@@ -42,6 +42,8 @@ namespace Maw3ed.APIs
             builder.Services.AddValidatorsFromAssemblyContaining<UpdateUserProfileDtoValidator>();
             builder.Services.AddScoped<IUserProfileService, UserProfileService>();
             builder.Services.AddScoped<IConversationService, ConversationService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IReviewService, ReviewService>();
             #endregion
 
             //// Identity
@@ -65,19 +67,29 @@ namespace Maw3ed.APIs
                     opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                     opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
                 })
-                .AddJwtBearer(opt =>
-                {
-                    opt.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-                        ValidAudience = builder.Configuration["Jwt:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-                    };
-                });
+.AddJwtBearer(opt =>
+{
+    opt.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+
+    opt.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            Console.WriteLine("JWT ERROR:");
+            Console.WriteLine(context.Exception);
+            return Task.CompletedTask;
+        }
+    };
+});
 
             // Controllers
             builder.Services.AddControllers();
@@ -89,11 +101,15 @@ namespace Maw3ed.APIs
             builder.Services.AddSignalR();
 
             // CORS
+            var allowedOrigins = builder.Configuration
+           .GetSection("Cors:AllowedOrigins")
+           .Get<string[]>() ?? Array.Empty<string>();
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", policy =>
                 {
-                    policy.WithOrigins("null", "http://localhost")
+                    policy.WithOrigins(allowedOrigins)
                           .AllowAnyMethod()
                           .AllowAnyHeader()
                           .AllowCredentials();
@@ -109,7 +125,11 @@ namespace Maw3ed.APIs
             // 2. HTTP REQUEST PIPELINE (Middlewares)
             // ==========================================================
             var app = builder.Build();
-
+            using (var scope = app.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                await AdminSeeder.SeedAsync(services);
+            }
             // تفعيل الـ Scalar والـ OpenAPI في بيئة التطوير
             if (app.Environment.IsDevelopment())
             {

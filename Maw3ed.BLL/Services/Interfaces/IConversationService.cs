@@ -23,5 +23,10 @@ namespace Maw3ed.BLL.Services.Interfaces
 
         // جيب رسايل المحادثة
         Task<IEnumerable<MessageDto>> GetMessagesAsync(int conversationId);
+        Task MarkMessagesAsReadAsync(int conversationId, string userId);
+
+
     }
+
+
 }

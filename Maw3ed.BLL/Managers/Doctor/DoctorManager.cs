@@ -87,22 +87,20 @@ namespace Maw3ed.BLL
         public async Task UpdateAsync(DoctorUpdateDto doctorDto)
         {
             var existingDoctor = await _unitOfWork.GetRepository<Doctor>().GetByIdAsync(doctorDto.Id);
-
             if (existingDoctor == null)
                 throw new Exception("Doctor not found");
 
-            existingDoctor.LicenseNumber = doctorDto.LicenseNumber;
-            existingDoctor.Certificate = doctorDto.Certificate;
-            existingDoctor.ConsultationFee = doctorDto.ConsultationFee;
-            existingDoctor.Address = doctorDto.Address;
-            existingDoctor.GraduationDate = doctorDto.GraduationDate;
-            existingDoctor.DepartmentId = doctorDto.DepartmentId;
-            existingDoctor.ImageProfile = doctorDto.ImageProfile;
+            if (doctorDto.LicenseNumber != null) existingDoctor.LicenseNumber = doctorDto.LicenseNumber;
+            if (doctorDto.Certificate != null) existingDoctor.Certificate = doctorDto.Certificate;
+            if (doctorDto.ConsultationFee != null) existingDoctor.ConsultationFee = doctorDto.ConsultationFee.Value;
+            if (doctorDto.Address != null) existingDoctor.Address = doctorDto.Address;
+            if (doctorDto.GraduationDate != null) existingDoctor.GraduationDate = doctorDto.GraduationDate.Value;
+            if (doctorDto.DepartmentId != null) existingDoctor.DepartmentId = doctorDto.DepartmentId.Value;
+            if (doctorDto.ImageProfile != null) existingDoctor.ImageProfile = doctorDto.ImageProfile;
 
             _unitOfWork.GetRepository<Doctor>().Update(existingDoctor);
             await _unitOfWork.SaveChangesAsync();
         }
-
         public async Task DeleteAsync(int id)
         {
             var doctor = await _unitOfWork.GetRepository<Doctor>().GetByIdAsync(id);

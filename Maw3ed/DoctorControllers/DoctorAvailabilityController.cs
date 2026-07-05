@@ -1,8 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
-using Maw3ed.DAL.DoctorDev.DoctorDtos;
-using System;
-using System.Threading.Tasks; // إضافة المكتبة
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Maw3ed.APIs.DoctorControllers
 {
@@ -17,13 +16,14 @@ namespace Maw3ed.APIs.DoctorControllers
             _doctorAvailabilityManager = doctorAvailabilityManager;
         }
 
-        // POST: api/DoctorAvailability
+        // بس الدكتور يضيف مواعيده
         [HttpPost]
-        public async Task<ActionResult> Add(CreateDoctorAvailabilityDto dto) // تعديل هنا
+        [Authorize(Roles = "Doctor")]
+        public async Task<ActionResult> Add(CreateDoctorAvailabilityDto dto)
         {
             try
             {
-                await _doctorAvailabilityManager.AddAsync(dto); // تعديل هنا
+                await _doctorAvailabilityManager.AddAsync(dto);
                 return Ok(new { Message = "Doctor availability added successfully." });
             }
             catch (Exception ex)
@@ -32,45 +32,14 @@ namespace Maw3ed.APIs.DoctorControllers
             }
         }
 
-        // GET: api/DoctorAvailability/doctor/5
-        [HttpGet("doctor/{doctorId}")]
-        public async Task<ActionResult> GetByDoctor(int doctorId) // تعديل هنا
-        {
-            var slots = await _doctorAvailabilityManager.GetByDoctorAsync(doctorId); // تعديل هنا
-            return Ok(slots);
-        }
-
-        // GET: api/DoctorAvailability/doctor/5/available
-        [HttpGet("doctor/{doctorId}/available")]
-        public async Task<ActionResult> GetAvailableSlots(int doctorId, [FromQuery] DateTime? date) // تعديل هنا
-        {
-            var slots = await _doctorAvailabilityManager.GetAvailableSlotsAsync(doctorId, date); // تعديل هنا
-            return Ok(slots);
-        }
-
-        // GET: api/DoctorAvailability/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult> GetById(int id) // تعديل هنا
+        [HttpPost("bulk")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<ActionResult> BulkAdd(BulkCreateDoctorAvailabilityDto dto)
         {
             try
             {
-                var slot = await _doctorAvailabilityManager.GetByIdAsync(id); // تعديل هنا
-                return Ok(slot);
-            }
-            catch (Exception ex)
-            {
-                return NotFound(new { Message = ex.Message });
-            }
-        }
-
-        // DELETE: api/DoctorAvailability/5
-        [HttpDelete("{id}")]
-        public async Task<ActionResult> Delete(int id) // تعديل هنا
-        {
-            try
-            {
-                await _doctorAvailabilityManager.DeleteAsync(id); // تعديل هنا
-                return Ok(new { Message = "Availability slot deleted successfully." });
+                await _doctorAvailabilityManager.BulkAddAsync(dto);
+                return Ok(new { Message = "Doctor availability slots added successfully." });
             }
             catch (Exception ex)
             {
@@ -78,14 +47,14 @@ namespace Maw3ed.APIs.DoctorControllers
             }
         }
 
-        // PUT: api/DoctorAvailability/5
         [HttpPut("{id}")]
-        public async Task<ActionResult> Update(int id, UpdateDoctorAvailabilityDto dto) // تعديل هنا
+        [Authorize(Roles = "Doctor")]
+        public async Task<ActionResult> Update(int id, UpdateDoctorAvailabilityDto dto)
         {
             try
             {
                 dto.Id = id;
-                await _doctorAvailabilityManager.UpdateAsync(dto); // تعديل هنا
+                await _doctorAvailabilityManager.UpdateAsync(dto);
                 return Ok(new { Message = "Doctor availability updated successfully." });
             }
             catch (Exception ex)
@@ -94,18 +63,50 @@ namespace Maw3ed.APIs.DoctorControllers
             }
         }
 
-        // POST: api/DoctorAvailability/bulk
-        [HttpPost("bulk")]
-        public async Task<ActionResult> BulkAdd(BulkCreateDoctorAvailabilityDto dto) // تعديل هنا
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<ActionResult> Delete(int id)
         {
             try
             {
-                await _doctorAvailabilityManager.BulkAddAsync(dto); // تعديل هنا
-                return Ok(new { Message = "Doctor availability slots added successfully." });
+                await _doctorAvailabilityManager.DeleteAsync(id);
+                return Ok(new { Message = "Availability slot deleted successfully." });
             }
             catch (Exception ex)
             {
                 return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        // أي حد يشوف المواعيد
+        [HttpGet("doctor/{doctorId}")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetByDoctor(int doctorId)
+        {
+            var slots = await _doctorAvailabilityManager.GetByDoctorAsync(doctorId);
+            return Ok(slots);
+        }
+
+        [HttpGet("doctor/{doctorId}/available")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetAvailableSlots(int doctorId, [FromQuery] DateTime? date)
+        {
+            var slots = await _doctorAvailabilityManager.GetAvailableSlotsAsync(doctorId, date);
+            return Ok(slots);
+        }
+
+        [HttpGet("{id}")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetById(int id)
+        {
+            try
+            {
+                var slot = await _doctorAvailabilityManager.GetByIdAsync(id);
+                return Ok(slot);
+            }
+            catch (Exception ex)
+            {
+                return NotFound(new { Message = ex.Message });
             }
         }
     }

@@ -1,52 +1,55 @@
-﻿using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
+﻿using Maw3ed.DAL.DoctorDev.DoctorDtos;
+using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Maw3ed.DAL.DoctorDev.DoctorDtos;
-using System;
-using System.Threading.Tasks; // إضافة المكتبة
 
 namespace Maw3ed.APIs.DoctorController
 {
-    [Route("doctor/[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class DoctorController : ControllerBase
     {
         private readonly IDoctorManager _doctorManager;
+
         public DoctorController(IDoctorManager doctorManager)
         {
             _doctorManager = doctorManager;
         }
 
+        // أي حد يشوف الدكاترة
         [HttpGet]
-        public async Task<IActionResult> GetAll() // تعديل هنا
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAll()
         {
-            var doctors = await _doctorManager.GetAllAsync(); // تعديل هنا
+            var doctors = await _doctorManager.GetAllAsync();
             return Ok(doctors);
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id) // تعديل هنا
+        [AllowAnonymous]
+        public async Task<IActionResult> GetById(int id)
         {
-            var doctor = await _doctorManager.GetByIdAsync(id); // تعديل هنا
-
+            var doctor = await _doctorManager.GetByIdAsync(id);
             if (doctor == null)
                 return NotFound();
-
             return Ok(doctor);
         }
 
+        // بس الأدمن يضيف/يعدل/يمسح
         [HttpPost]
-        public async Task<IActionResult> Create(DoctorCreateDto doctorDto) // تعديل هنا
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Create(DoctorCreateDto doctorDto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            await _doctorManager.AddAsync(doctorDto); // تعديل هنا
-
+            await _doctorManager.AddAsync(doctorDto);
             return Ok(new { message = "Doctor created successfully!" });
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, DoctorUpdateDto doctorDto) // تعديل هنا
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Update(int id, DoctorUpdateDto doctorDto)
         {
             if (id != doctorDto.Id)
                 return BadRequest("Id mismatch");
@@ -56,7 +59,7 @@ namespace Maw3ed.APIs.DoctorController
 
             try
             {
-                await _doctorManager.UpdateAsync(doctorDto); // تعديل هنا
+                await _doctorManager.UpdateAsync(doctorDto);
                 return NoContent();
             }
             catch (Exception ex)
@@ -66,10 +69,10 @@ namespace Maw3ed.APIs.DoctorController
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id) // تعديل هنا
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Delete(int id)
         {
-            await _doctorManager.DeleteAsync(id); // تعديل هنا
-
+            await _doctorManager.DeleteAsync(id);
             return NoContent();
         }
     }

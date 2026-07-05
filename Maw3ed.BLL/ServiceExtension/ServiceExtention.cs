@@ -13,7 +13,7 @@ namespace Maw3ed.BLL
         public static void AddBLLServices(this IServiceCollection services, IConfiguration configuration)
         {
             // JWT settings (read from appsettings.json "JwtSettings" section)
-            services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
+            services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
 
             // Brevo (email) settings
             services.Configure<BrevoSettings>(configuration.GetSection("BrevoSettings"));

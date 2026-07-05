@@ -1,22 +1,52 @@
 ﻿using Maw3ed.BLL.DTOs.MedicalFiles;
 using Maw3ed.BLL.Services.Interfaces;
+using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
+using Maw3ed.DAL.Reposatries.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Maw3ed.APIs.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // كل الـ Endpoints محتاجة Login
+    [Authorize]
     public class MedicalFileController : ControllerBase
     {
         private readonly IMedicalFileService _medicalFileService;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public MedicalFileController(IMedicalFileService medicalFileService)
+        public MedicalFileController(
+            IMedicalFileService medicalFileService,
+            IUnitOfWork unitOfWork)
         {
             _medicalFileService = medicalFileService;
+            _unitOfWork = unitOfWork;
+        }
+
+        // ============ Helpers ============
+        private async Task<int?> GetPatientIdAsync()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return null;
+
+            var patients = await _unitOfWork.GetRepository<Patient>()
+                .FindAsync(p => p.UserId == userId);
+
+            return patients.FirstOrDefault()?.Id;
+        }
+
+        private async Task<int?> GetDoctorIdAsync()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return null;
+
+            var doctors = await _unitOfWork.GetRepository<Doctor>()
+                .FindAsync(d => d.UserId == userId);
+
+            return doctors.FirstOrDefault()?.Id;
         }
 
         // ============ Patient Endpoints ============
@@ -26,7 +56,7 @@ namespace Maw3ed.APIs.Controllers
         [Authorize(Roles = "Patient")]
         public async Task<IActionResult> GetAllFiles()
         {
-            var patientId = GetPatientId();
+            var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
             var files = await _medicalFileService.GetPatientFilesAsync(patientId.Value);
@@ -38,7 +68,7 @@ namespace Maw3ed.APIs.Controllers
         [Authorize(Roles = "Patient")]
         public async Task<IActionResult> GetCategorySummary()
         {
-            var patientId = GetPatientId();
+            var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
             var summary = await _medicalFileService.GetCategorySummaryAsync(patientId.Value);
@@ -50,7 +80,7 @@ namespace Maw3ed.APIs.Controllers
         [Authorize(Roles = "Patient")]
         public async Task<IActionResult> GetFilesByCategory(MedicalFileCategory category)
         {
-            var patientId = GetPatientId();
+            var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
             var files = await _medicalFileService
@@ -63,7 +93,7 @@ namespace Maw3ed.APIs.Controllers
         [Authorize(Roles = "Patient")]
         public async Task<IActionResult> GetFileById(int fileId)
         {
-            var patientId = GetPatientId();
+            var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
             try
@@ -83,7 +113,7 @@ namespace Maw3ed.APIs.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadFile([FromForm] UploadMedicalFileDto dto)
         {
-            var patientId = GetPatientId();
+            var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
             try
@@ -102,7 +132,7 @@ namespace Maw3ed.APIs.Controllers
         [Authorize(Roles = "Patient")]
         public async Task<IActionResult> DeleteFile(int fileId)
         {
-            var patientId = GetPatientId();
+            var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
             try
@@ -125,7 +155,7 @@ namespace Maw3ed.APIs.Controllers
         public async Task<IActionResult> DoctorUploadFile(
             int patientId, [FromForm] UploadMedicalFileDto dto)
         {
-            var doctorId = GetDoctorId();
+            var doctorId = await GetDoctorIdAsync();
             if (doctorId == null) return Unauthorized();
 
             try
@@ -145,7 +175,7 @@ namespace Maw3ed.APIs.Controllers
         [Authorize(Roles = "Doctor")]
         public async Task<IActionResult> GetFilesForDoctor(int patientId)
         {
-            var doctorId = GetDoctorId();
+            var doctorId = await GetDoctorIdAsync();
             if (doctorId == null) return Unauthorized();
 
             try
@@ -158,22 +188,6 @@ namespace Maw3ed.APIs.Controllers
             {
                 return BadRequest(ex.Message);
             }
-        }
-
-        // ============ Helpers ============
-
-        // بتجيب الـ PatientId من الـ Token
-        private int? GetPatientId()
-        {
-            var value = User.FindFirst("PatientId")?.Value;
-            return int.TryParse(value, out var id) ? id : null;
-        }
-
-        // بتجيب الـ DoctorId من الـ Token
-        private int? GetDoctorId()
-        {
-            var value = User.FindFirst("DoctorId")?.Value;
-            return int.TryParse(value, out var id) ? id : null;
         }
     }
 }

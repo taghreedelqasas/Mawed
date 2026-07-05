@@ -11,11 +11,15 @@ namespace Maw3ed.BLL.Services.Classes
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly AppDbContext _context;
+        private readonly INotificationService _notificationService; 
 
-        public AppointmentService(IUnitOfWork unitOfWork, AppDbContext context)
+
+        public AppointmentService(IUnitOfWork unitOfWork, AppDbContext context, INotificationService notificationService)
+
         {
             _unitOfWork = unitOfWork;
             _context    = context;
+             _notificationService = notificationService;
         }
 
         // ── Get Available Slots ──────────────────────────────────────────
@@ -50,6 +54,18 @@ namespace Maw3ed.BLL.Services.Classes
             if (patient is null)
                 return new(false, "Patient profile not found.", null, ServiceError.NotFound);
 
+            // ← تحقق إن المريض مش حاجز أكتر من 3 دكاترة النهارده
+            var todayBookings = await _context.Appointments
+                .CountAsync(a => a.PatientId == patient.Id
+                              && a.Status != AppointmentStatus.Cancelled
+                              && a.CreatedAt.Date == DateTime.UtcNow.Date);
+
+            if (todayBookings >= 3)
+                return new(false,
+                    "مش هتقدر تحجز أكتر من 3 مواعيد في اليوم الواحد.",
+                    null,
+                    ServiceError.BadRequest);
+
             var slot = await _context.DoctorAvailabilities
                 .Include(s => s.Doctor).ThenInclude(d => d!.User)
                 .Include(s => s.Doctor).ThenInclude(d => d!.Department)
@@ -72,18 +88,45 @@ namespace Maw3ed.BLL.Services.Classes
                 .AnyAsync(a => a.PatientId == patient.Id
                             && a.Status != AppointmentStatus.Cancelled
                             && a.DoctorAvailability.StartTime < slot.EndTime
-                            && a.DoctorAvailability.EndTime   > slot.StartTime);
+                            && a.DoctorAvailability.EndTime > slot.StartTime);
 
             if (hasConflict)
                 return new(false, "You already have an appointment in this time range.", null, ServiceError.Conflict);
+            // دور على Appointment ملغي قديم على نفس الـ Slot
+            var cancelledAppointment = await _context.Appointments
+                .FirstOrDefaultAsync(a => a.DoctorAvailabilityId == dto.DoctorAvailabilityId
+                                        && a.Status == AppointmentStatus.Cancelled);
 
+            if (cancelledAppointment != null)
+            {
+                // حدث الـ Appointment القديم بدل ما تعمل جديد
+                cancelledAppointment.PatientId = patient.Id;
+                cancelledAppointment.DoctorId = slot.DoctorId;
+                cancelledAppointment.Status = AppointmentStatus.Pending;
+                cancelledAppointment.Notes = dto.Notes;
+                slot.IsBooked = true;
+
+                _unitOfWork.GetRepository<Appointment>().Update(cancelledAppointment);
+                _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);
+                await _unitOfWork.SaveChangesAsync();
+
+                var updated = await _context.Appointments
+                    .Include(a => a.Patient).ThenInclude(p => p!.User)
+                    .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                    .Include(a => a.Doctor).ThenInclude(d => d!.Department)
+                    .Include(a => a.DoctorAvailability)
+                    .FirstAsync(a => a.Id == cancelledAppointment.Id);
+
+                return new(true, "Appointment booked successfully.",
+                    MapToResponse(updated, updated.DoctorAvailability));
+            }
             var appointment = new Appointment
             {
-                PatientId            = patient.Id,
-                DoctorId             = slot.DoctorId,
+                PatientId = patient.Id,
+                DoctorId = slot.DoctorId,
                 DoctorAvailabilityId = slot.Id,
-                Status               = AppointmentStatus.Pending,
-                Notes                = dto.Notes
+                Status = AppointmentStatus.Pending,
+                Notes = dto.Notes
             };
 
             slot.IsBooked = true;
@@ -91,14 +134,28 @@ namespace Maw3ed.BLL.Services.Classes
             _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);
             await _unitOfWork.SaveChangesAsync();
 
-            // FIX: بدل ما نعمل Reference loading على entity قد تكون null
-            // نعمل query واحدة بعد الـ save بالـ Id المتولد
             var saved = await _context.Appointments
                 .Include(a => a.Patient).ThenInclude(p => p!.User)
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
                 .Include(a => a.Doctor).ThenInclude(d => d!.Department)
                 .Include(a => a.DoctorAvailability)
                 .FirstAsync(a => a.Id == appointment.Id);
+
+            // إشعار للمريض
+            await _notificationService.SendEmailAsync(
+                saved.Patient.UserId,
+                "تم حجز موعدك بنجاح",
+                $"تم حجز موعدك مع الدكتور {saved.Doctor?.User?.FirstName} {saved.Doctor?.User?.LastName} في {saved.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                saved.Id
+            );
+
+            // إشعار للدكتور
+            await _notificationService.SendEmailAsync(
+                saved.Doctor.UserId,
+                "لديك موعد جديد",
+                $"قام المريض {saved.Patient?.User?.FirstName} {saved.Patient?.User?.LastName} بحجز موعد في {saved.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                saved.Id
+            );
 
             return new(true, "Appointment booked successfully.", MapToResponse(saved, saved.DoctorAvailability));
         }
@@ -111,6 +168,19 @@ namespace Maw3ed.BLL.Services.Classes
                 .FirstOrDefaultAsync(p => p.UserId == patientUserId);
             if (patient is null)
                 return new(false, "Patient profile not found.", ServiceError.NotFound);
+
+            // ← تحقق إن المريض مش لغى أكتر من 5 مرات الشهر ده
+            var cancelledThisMonth = await _context.Appointments
+     .CountAsync(a => a.PatientId == patient.Id
+                   && a.Status == AppointmentStatus.Cancelled
+                   && a.UpdatedAt.HasValue
+                   && a.UpdatedAt.Value.Month == DateTime.UtcNow.Month
+                   && a.UpdatedAt.Value.Year == DateTime.UtcNow.Year);
+
+            if (cancelledThisMonth >= 5)
+                return new(false,
+                    "مش هتقدر تلغي أكتر من 5 مواعيد في الشهر الواحد.",
+                    ServiceError.BadRequest);
 
             var appointment = await _context.Appointments
                 .Include(a => a.DoctorAvailability)
@@ -134,6 +204,20 @@ namespace Maw3ed.BLL.Services.Classes
             _unitOfWork.GetRepository<Appointment>().Update(appointment);
             _unitOfWork.GetRepository<DoctorAvailability>().Update(appointment.DoctorAvailability);
             await _unitOfWork.SaveChangesAsync();
+
+            var cancelledAppt = await _context.Appointments
+                .Include(a => a.Patient).ThenInclude(p => p!.User)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.DoctorAvailability)
+                .FirstAsync(a => a.Id == appointmentId);
+
+            // إشعار للمريض
+            await _notificationService.SendEmailAsync(
+                cancelledAppt.Patient.UserId,
+                "تم إلغاء موعدك",
+                $"تم إلغاء موعدك مع الدكتور {cancelledAppt.Doctor?.User?.FirstName} في {cancelledAppt.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                appointmentId
+            );
 
             return new(true, "Appointment cancelled successfully.");
         }
@@ -171,7 +255,13 @@ namespace Maw3ed.BLL.Services.Classes
 
             if (newSlot is null)
                 return new(false, "New slot is not available.", null, ServiceError.NotFound);
+            // امسحي الـ Appointment الملغي القديم على الـ Slot الجديد لو موجود
+            var oldCancelledOnNewSlot = await _context.Appointments
+                .FirstOrDefaultAsync(a => a.DoctorAvailabilityId == dto.NewDoctorAvailabilityId
+                                        && a.Status == AppointmentStatus.Cancelled);
 
+            if (oldCancelledOnNewSlot != null)
+                _context.Appointments.Remove(oldCancelledOnNewSlot);
             var oldSlot = appointment.DoctorAvailability;
             oldSlot.IsBooked  = false;
             newSlot.IsBooked  = true;
@@ -236,6 +326,20 @@ namespace Maw3ed.BLL.Services.Classes
             appointment.Status = AppointmentStatus.Confirmed;
             _unitOfWork.GetRepository<Appointment>().Update(appointment);
             await _unitOfWork.SaveChangesAsync();
+
+            // بعد SaveChangesAsync أضيفي
+            var confirmedAppt = await _context.Appointments
+                .Include(a => a.Patient).ThenInclude(p => p!.User)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.DoctorAvailability)
+                .FirstAsync(a => a.Id == appointmentId);
+
+            await _notificationService.SendEmailAsync(
+                confirmedAppt.Patient.UserId,
+                "تم تأكيد موعدك",
+                $"تم تأكيد موعدك مع الدكتور {confirmedAppt.Doctor?.User?.FirstName} في {confirmedAppt.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                appointmentId
+            );
 
             return new(true, "Appointment confirmed.");
         }

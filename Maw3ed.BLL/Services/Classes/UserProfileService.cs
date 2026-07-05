@@ -40,8 +40,8 @@ namespace Maw3ed.BLL.Services.Classes
                 Email = user.Email!,
                 PhoneNumber = user.PhoneNumber,
                 BirthDate = user.BirthDate,
-                Gender = user.Gender == Gender.Male ? "ذكر" : "أنثى",
-                ProfilePictureUrl = user.ProfilePictureUrl // ← أضيفي ده
+                Gender = user.Gender == null ? null : (user.Gender == Gender.Male ? "ذكر" : "أنثى"),
+                ProfilePictureUrl = user.ProfilePictureUrl 
             };
         }
 
