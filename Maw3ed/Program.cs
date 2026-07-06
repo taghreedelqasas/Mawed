@@ -35,6 +35,12 @@ namespace Maw3ed.APIs
             builder.Services.AddDALServices(builder.Configuration);
             //BLL
             builder.Services.AddBLLServices(builder.Configuration);
+            builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>();
+            builder.Services.AddScoped<IWalletService, WalletService>();
+            
+            builder.Services.AddScoped<IWithdrawService, WithdrawService>();
+            // في Program.cs
+            builder.Services.AddScoped<IAdminWithdrawService, AdminWithdrawService>();
 
             #region Services Merna
             builder.Services.AddScoped<IMedicalFileService, MedicalFileService>();

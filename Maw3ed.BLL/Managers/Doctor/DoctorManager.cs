@@ -1,7 +1,8 @@
 ﻿using Maw3ed.DAL;
-using Maw3ed.DAL.Reposatries.Interfaces;
+using Maw3ed.DAL.Data.Models;
 using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
+using Maw3ed.DAL.Reposatries.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -81,6 +82,16 @@ namespace Maw3ed.BLL
             };
 
             await _unitOfWork.GetRepository<Doctor>().AddAsync(doctor);
+            await _unitOfWork.SaveChangesAsync();
+
+            var wallet = new DoctorWallet
+            {
+                DoctorId = doctor.Id,
+                Balance = 0,
+                PendingBalance = 0
+            };
+
+            await _unitOfWork.GetRepository<DoctorWallet>().AddAsync(wallet);
             await _unitOfWork.SaveChangesAsync();
         }
 

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Maw3ed.DAL.Data.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -32,6 +33,11 @@ namespace Maw3ed.DAL
         public DbSet<ChatSession> ChatSessions { get; set; }
 
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<DoctorWallet> DoctorWallets { get; set; }
+
+        public DbSet<WalletTransaction> WalletTransactions { get; set; }
+
+        public DbSet<WithdrawRequest> WithdrawRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -40,5 +46,7 @@ namespace Maw3ed.DAL
             builder.ApplyConfigurationsFromAssembly(
                 typeof(AppDbContext).Assembly);
         }
+
+
     }
 }
