@@ -131,7 +131,7 @@ namespace Maw3ed.APIs
                 await AdminSeeder.SeedAsync(services);
             }
             // تفعيل الـ Scalar والـ OpenAPI في بيئة التطوير
-            if (app.Environment.IsDevelopment())
+            if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
             {
                 app.MapOpenApi();
                 app.MapScalarApiReference();
