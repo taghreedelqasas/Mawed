@@ -14,5 +14,6 @@ namespace Maw3ed.BLL.Services.Interfaces
            string patientUserId, int appointmentId);
         // في IPaymentService.cs ضيفي:
         Task<ServiceResult> HandlePaymobWebhookAsync(PaymobWebhookDto payload, string receivedHmac);
+        Task<ServiceResult> RefundAppointmentPaymentAsync(int appointmentId);
     }
 }

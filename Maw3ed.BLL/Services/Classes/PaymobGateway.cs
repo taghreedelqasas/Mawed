@@ -97,5 +97,30 @@ namespace Maw3ed.BLL.Services.Classes
 
             return computedHmac == receivedHmac.ToLowerInvariant();
         }
+
+        public async Task<bool> RefundAsync(string transactionId, int amountCents)
+        {
+            var apiKey = _config["Paymob:ApiKey"];
+
+            var authRes = await _http.PostAsJsonAsync(
+                "https://accept.paymob.com/api/auth/tokens",
+                new { api_key = apiKey });
+            var authToken = (await authRes.Content.ReadFromJsonAsync<PaymobAuthResponse>())!.Token;
+
+            var refundRes = await _http.PostAsJsonAsync(
+                "https://accept.paymob.com/api/acceptance/void_refund/refund",
+                new
+                {
+                    auth_token = authToken,
+                    transaction_id = transactionId,
+                    amount_cents = amountCents
+                });
+
+            if (!refundRes.IsSuccessStatusCode)
+                return false;
+
+            var result = await refundRes.Content.ReadFromJsonAsync<PaymobRefundResponse>();
+            return result?.Success ?? false;
+        }
     }
 }

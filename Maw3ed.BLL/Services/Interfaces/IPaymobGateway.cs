@@ -17,5 +17,6 @@ namespace Maw3ed.BLL.Services.Interfaces
             string billingLastName,
             string billingPhone);
         bool VerifyHmac(PaymobWebhookDto payload, string receivedHmac);
+        Task<bool> RefundAsync(string transactionId, int amountCents);
     }
 }

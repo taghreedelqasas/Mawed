@@ -20,5 +20,7 @@ namespace Maw3ed.DAL
         public int AppointmentId { get; set; }
 
         public Appointment Appointment { get; set; }
+        public string? PaymobTransactionId { get; set; }   // بنخزنه وقت نجاح الدفع، عشان نقدر نعمل عليه Refund بعدين
+        public DateTime? RefundedAt { get; set; }
     }
 }

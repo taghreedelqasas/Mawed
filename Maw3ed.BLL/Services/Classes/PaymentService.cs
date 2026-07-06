@@ -95,6 +95,7 @@ namespace Maw3ed.BLL.Services.Classes
             if (payload.Success)
             {
                 payment.Status = PaymentStatus.Paid;
+                payment.PaymobTransactionId = payload.Id.ToString();
                 payment.Appointment.PaymentStatus = PaymentStatus.Paid;
 
                 _unitOfWork.GetRepository<Payment>().Update(payment);
@@ -134,6 +135,68 @@ namespace Maw3ed.BLL.Services.Classes
                 Amount = netAmount,
                 Type = "Credit",
                 Status = "Available"
+            };
+            await _unitOfWork.GetRepository<WalletTransaction>().AddAsync(transaction);
+
+            await _unitOfWork.SaveChangesAsync();
+
+
+        }
+
+
+        public async Task<ServiceResult> RefundAppointmentPaymentAsync(int appointmentId)
+        {
+            var payment = await _context.Payments
+                .Include(p => p.Appointment)
+                .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
+
+            if (payment is null)
+                return new(false, "Payment not found.", ServiceError.NotFound);
+
+            if (payment.Status != PaymentStatus.Paid)
+                return new(false, "Only paid payments can be refunded.", ServiceError.BadRequest);
+
+            if (string.IsNullOrEmpty(payment.PaymobTransactionId))
+                return new(false, "No Paymob transaction reference found.", ServiceError.BadRequest);
+
+            var refunded = await _paymob.RefundAsync(payment.PaymobTransactionId, (int)(payment.Amount * 100));
+            if (!refunded)
+                return new(false, "Refund failed on Paymob's side.", ServiceError.BadRequest);
+
+            payment.Status = PaymentStatus.Refunded;
+            payment.RefundedAt = DateTime.UtcNow;
+            payment.Appointment.PaymentStatus = PaymentStatus.Refunded;
+
+            _unitOfWork.GetRepository<Payment>().Update(payment);
+            _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);
+            await _unitOfWork.SaveChangesAsync();
+
+            await ReverseDoctorWalletCreditAsync(payment);
+
+            return new(true, "Payment refunded successfully.");
+        }
+
+        private async Task ReverseDoctorWalletCreditAsync(Payment payment)
+        {
+            var doctorId = payment.Appointment.DoctorId;
+            var netAmount = payment.Amount - payment.SystemFee;
+
+            var wallet = (await _unitOfWork.GetRepository<DoctorWallet>()
+                .GetAllAsync(w => w.DoctorId == doctorId)).FirstOrDefault();
+
+            if (wallet is null) return;
+
+            wallet.Balance -= netAmount;
+            wallet.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.GetRepository<DoctorWallet>().Update(wallet);
+
+            var transaction = new WalletTransaction
+            {
+                DoctorId = doctorId,
+                AppointmentId = payment.AppointmentId,
+                Amount = -netAmount,
+                Type = "Debit",
+                Status = "Refund"
             };
             await _unitOfWork.GetRepository<WalletTransaction>().AddAsync(transaction);
 
