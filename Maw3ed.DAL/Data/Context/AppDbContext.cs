@@ -1,9 +1,11 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Maw3ed.DAL.Data.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using System.Text;
+using Maw3ed.DAL;
 
 namespace Maw3ed.DAL
 {
@@ -33,6 +35,9 @@ namespace Maw3ed.DAL
 
         public DbSet<ChatMessage> ChatMessages { get; set; }
 
+        public DbSet<MedicalReportAnalysis> MedicalReportAnalyses { get; set; }
+
+        public DbSet<MedicalImageAnalysis> MedicalImageAnalyses { get; set; }
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

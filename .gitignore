@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Uploaded medical files
+Maw3ed/wwwroot/MedicalImages/
+Maw3ed/wwwroot/MedicalReports/
+
+# Local configuration
+Maw3ed/appsettings.Development.json

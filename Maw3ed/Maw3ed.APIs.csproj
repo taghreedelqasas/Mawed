@@ -25,7 +25,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Controllers\" />
+    <Folder Include="wwwroot\MedicalReports\" />
+    <Folder Include="wwwroot\MedicalImages\" />
   </ItemGroup>
 
 </Project>
