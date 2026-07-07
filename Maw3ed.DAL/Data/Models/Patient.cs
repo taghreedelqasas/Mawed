@@ -1,4 +1,5 @@
 ﻿using Maw3ed.DAL;
+using Maw3ed.DAL.Data.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -26,5 +27,8 @@ namespace Maw3ed.DAL
 
         public ICollection<ChatSession> ChatSessions { get; set; }
             = new List<ChatSession>();
+
+        public ICollection<MedicalReportAnalysis> MedicalReportAnalyses { get; set; }
+    = new List<MedicalReportAnalysis>();
     }
 }
