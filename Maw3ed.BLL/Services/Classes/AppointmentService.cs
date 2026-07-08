@@ -11,15 +11,17 @@ namespace Maw3ed.BLL.Services.Classes
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly AppDbContext _context;
-        private readonly INotificationService _notificationService; 
+        private readonly INotificationService _notificationService;
+        private readonly IPaymentService _paymentService;
 
 
-        public AppointmentService(IUnitOfWork unitOfWork, AppDbContext context, INotificationService notificationService)
+        public AppointmentService(IUnitOfWork unitOfWork, AppDbContext context, INotificationService notificationService, IPaymentService paymentService)
 
         {
             _unitOfWork = unitOfWork;
             _context    = context;
              _notificationService = notificationService;
+            _paymentService = paymentService;
         }
 
         // ── Get Available Slots ──────────────────────────────────────────
@@ -212,6 +214,7 @@ namespace Maw3ed.BLL.Services.Classes
                 .FirstAsync(a => a.Id == appointmentId);
 
             // إشعار للمريض
+            // إشعار للمريض
             await _notificationService.SendEmailAsync(
                 cancelledAppt.Patient.UserId,
                 "تم إلغاء موعدك",
@@ -219,7 +222,27 @@ namespace Maw3ed.BLL.Services.Classes
                 appointmentId
             );
 
-            return new(true, "Appointment cancelled successfully.");
+            // ── استرداد المبلغ لو الموعد كان مدفوع وتم الإلغاء قبل 24 ساعة ──
+            string refundNote = "";
+
+            if (appointment.PaymentStatus == PaymentStatus.Paid)
+            {
+                var hoursUntilAppointment = (appointment.DoctorAvailability.StartTime - DateTime.UtcNow).TotalHours;
+
+                if (hoursUntilAppointment >= 24)
+                {
+                    var refundResult = await _paymentService.RefundAppointmentPaymentAsync(appointment.Id);
+                    refundNote = refundResult.Success
+                        ? " وتم استرداد المبلغ المدفوع بنجاح."
+                        : " لكن حصلت مشكلة أثناء استرداد المبلغ، هيتم التعامل معاها يدويًا من فريق الدعم.";
+                }
+                else
+                {
+                    refundNote = " ملحوظة: الإلغاء تم بعد أقل من 24 ساعة من الموعد، فمينفعش يترد المبلغ المدفوع.";
+                }
+            }
+
+            return new(true, "Appointment cancelled successfully." + refundNote);
         }
 
         // ── Reschedule Appointment ───────────────────────────────────────
