@@ -151,7 +151,7 @@ namespace Maw3ed.BLL.Services.Classes
             using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(hmacSecret));
             var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(concatenated));
             var computedBytes = hash;
-            var receivedBytes = Encoding.UTF8.GetBytes(receivedHmac.ToLowerInvariant());
+            var receivedBytes = Convert.FromHexString(receivedHmac);
 
             return CryptographicOperations.FixedTimeEquals(computedBytes, receivedBytes);
         }
