@@ -1,11 +1,11 @@
-﻿// Maw3ed.BLL/Services/Classes/PaymentService.cs
-using Maw3ed.BLL.Common;
+﻿using Maw3ed.BLL.Common;
 using Maw3ed.BLL.DTOs.Payment;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
 using Maw3ed.DAL.Reposatries.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Maw3ed.BLL.Services.Classes
 {
@@ -14,18 +14,24 @@ namespace Maw3ed.BLL.Services.Classes
         private readonly IUnitOfWork _unitOfWork;
         private readonly AppDbContext _context;
         private readonly IPaymobGateway _paymob;
-       
+        private readonly ILogger<PaymentService> _logger;
 
-        public PaymentService(IUnitOfWork unitOfWork, AppDbContext context, IPaymobGateway paymob)
+        public PaymentService(
+            IUnitOfWork unitOfWork,
+            AppDbContext context,
+            IPaymobGateway paymob,
+            ILogger<PaymentService> logger)
         {
             _unitOfWork = unitOfWork;
             _context = context;
             _paymob = paymob;
+            _logger = logger;
         }
 
         public async Task<ServiceResult<PaymentInitiateResponseDto>> InitiatePaymentAsync(
-            string patientUserId, int appointmentId)
+            string patientUserId, int appointmentId, string? paymentMethod = null)
         {
+            // Use _context directly for complex includes (repository doesn't support ThenInclude)
             var appointment = await _context.Appointments
                 .Include(a => a.Patient).ThenInclude(p => p.User)
                 .Include(a => a.Doctor)
@@ -47,7 +53,11 @@ namespace Maw3ed.BLL.Services.Classes
             payment.Amount = appointment.Doctor.ConsultationFee;
             payment.SystemFee = Math.Round(payment.Amount * 0.10m, 2);
             payment.Status = PaymentStatus.Pending;
-            payment.Method = PaymentMethod.CreditCard;
+            payment.Method = paymentMethod switch
+            {
+                "Wallet" => PaymentMethod.Wallet,
+                _ => PaymentMethod.CreditCard
+            };
 
             if (payment.Id == 0)
                 await _unitOfWork.GetRepository<Payment>().AddAsync(payment);
@@ -56,15 +66,14 @@ namespace Maw3ed.BLL.Services.Classes
 
             await _unitOfWork.SaveChangesAsync();
 
-            // TODO (الخطوة 3): هنستبدل السطر ده باستدعاء حقيقي لـ IPaymobGateway
             var iframeUrl = await _paymob.CreatePaymentLinkAsync(
-      amountCents: (int)(payment.Amount * 100),
-      merchantOrderId: $"APPT-{appointment.Id}-{payment.Id}",
-      billingEmail: appointment.Patient.User.Email!,
-      billingFirstName: appointment.Patient.User.FirstName,
-      billingLastName: appointment.Patient.User.LastName,
-      billingPhone: appointment.Patient.User.PhoneNumber ?? "01000000000"
-  );
+                amountCents: (int)(payment.Amount * 100),
+                merchantOrderId: $"APPT-{appointment.Id}-{payment.Id}",
+                billingEmail: appointment.Patient.User.Email!,
+                billingFirstName: appointment.Patient.User.FirstName,
+                billingLastName: appointment.Patient.User.LastName,
+                billingPhone: appointment.Patient.User.PhoneNumber ?? "01000000000"
+            );
 
             return new(true, "Payment initiated.", new PaymentInitiateResponseDto
             {
@@ -76,42 +85,66 @@ namespace Maw3ed.BLL.Services.Classes
         public async Task<ServiceResult> HandlePaymobWebhookAsync(PaymobWebhookDto payload, string receivedHmac)
         {
             if (!_paymob.VerifyHmac(payload, receivedHmac))
+            {
+                _logger.LogWarning("Webhook HMAC verification failed for order {OrderId}", payload.MerchantOrderId);
                 return new(false, "Invalid HMAC signature.", ServiceError.BadRequest);
+            }
 
             var parts = payload.MerchantOrderId.Split('-');
             if (parts.Length != 3 || !int.TryParse(parts[2], out var paymentId))
+            {
+                _logger.LogWarning("Invalid order reference: {OrderId}", payload.MerchantOrderId);
                 return new(false, "Invalid order reference.", ServiceError.BadRequest);
-
-            var payment = await _context.Payments
-                .Include(p => p.Appointment)
-                .FirstOrDefaultAsync(p => p.Id == paymentId);
-
-            if (payment is null)
-                return new(false, "Payment not found.", ServiceError.NotFound);
-
-            if (payment.Status == PaymentStatus.Paid)
-                return new(true, "Already processed.");
-
-            if (payload.Success)
-            {
-                payment.Status = PaymentStatus.Paid;
-                payment.PaymobTransactionId = payload.Id.ToString();
-                payment.Appointment.PaymentStatus = PaymentStatus.Paid;
-
-                _unitOfWork.GetRepository<Payment>().Update(payment);
-                _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);
-                await _unitOfWork.SaveChangesAsync();
-
-                await CreditDoctorWalletAsync(payment);
-            }
-            else
-            {
-                payment.Status = PaymentStatus.Failed;
-                _unitOfWork.GetRepository<Payment>().Update(payment);
-                await _unitOfWork.SaveChangesAsync();
             }
 
-            return new(true, "Webhook processed.");
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var payment = await _context.Payments
+                    .Include(p => p.Appointment)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment is null)
+                {
+                    await transaction.RollbackAsync();
+                    return new(false, "Payment not found.", ServiceError.NotFound);
+                }
+
+                if (payment.Status == PaymentStatus.Paid)
+                {
+                    await transaction.CommitAsync();
+                    return new(true, "Already processed.");
+                }
+
+                if (payload.Success)
+                {
+                    payment.Status = PaymentStatus.Paid;
+                    payment.PaymobTransactionId = payload.Id.ToString();
+                    payment.Appointment.PaymentStatus = PaymentStatus.Paid;
+
+                    _unitOfWork.GetRepository<Payment>().Update(payment);
+                    _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    await CreditDoctorWalletAsync(payment);
+                }
+                else
+                {
+                    payment.Status = PaymentStatus.Failed;
+                    _unitOfWork.GetRepository<Payment>().Update(payment);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+                return new(true, "Webhook processed.");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error processing webhook for payment {PaymentId}", paymentId);
+                throw;
+            }
         }
 
         private async Task CreditDoctorWalletAsync(Payment payment)
@@ -122,7 +155,11 @@ namespace Maw3ed.BLL.Services.Classes
             var wallet = (await _unitOfWork.GetRepository<DoctorWallet>()
                 .GetAllAsync(w => w.DoctorId == doctorId)).FirstOrDefault();
 
-            if (wallet is null) return;
+            if (wallet is null)
+            {
+                _logger.LogWarning("Doctor wallet not found for DoctorId={DoctorId} during payment credit", doctorId);
+                return;
+            }
 
             wallet.Balance += netAmount;
             wallet.UpdatedAt = DateTime.UtcNow;
@@ -139,13 +176,11 @@ namespace Maw3ed.BLL.Services.Classes
             await _unitOfWork.GetRepository<WalletTransaction>().AddAsync(transaction);
 
             await _unitOfWork.SaveChangesAsync();
-
-
         }
-
 
         public async Task<ServiceResult> RefundAppointmentPaymentAsync(int appointmentId)
         {
+            // Use _context directly for complex includes
             var payment = await _context.Payments
                 .Include(p => p.Appointment)
                 .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId);
@@ -163,17 +198,29 @@ namespace Maw3ed.BLL.Services.Classes
             if (!refunded)
                 return new(false, "Refund failed on Paymob's side.", ServiceError.BadRequest);
 
-            payment.Status = PaymentStatus.Refunded;
-            payment.RefundedAt = DateTime.UtcNow;
-            payment.Appointment.PaymentStatus = PaymentStatus.Refunded;
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _unitOfWork.GetRepository<Payment>().Update(payment);
-            _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                payment.Status = PaymentStatus.Refunded;
+                payment.RefundedAt = DateTime.UtcNow;
+                payment.Appointment.PaymentStatus = PaymentStatus.Refunded;
 
-            await ReverseDoctorWalletCreditAsync(payment);
+                _unitOfWork.GetRepository<Payment>().Update(payment);
+                _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);
+                await _unitOfWork.SaveChangesAsync();
 
-            return new(true, "Payment refunded successfully.");
+                await ReverseDoctorWalletCreditAsync(payment);
+
+                await transaction.CommitAsync();
+                return new(true, "Payment refunded successfully.");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error processing refund for appointment {AppointmentId}", appointmentId);
+                throw;
+            }
         }
 
         private async Task ReverseDoctorWalletCreditAsync(Payment payment)
@@ -184,7 +231,19 @@ namespace Maw3ed.BLL.Services.Classes
             var wallet = (await _unitOfWork.GetRepository<DoctorWallet>()
                 .GetAllAsync(w => w.DoctorId == doctorId)).FirstOrDefault();
 
-            if (wallet is null) return;
+            if (wallet is null)
+            {
+                _logger.LogWarning("Doctor wallet not found for DoctorId={DoctorId} during refund reversal", doctorId);
+                return;
+            }
+
+            if (wallet.Balance < netAmount)
+            {
+                _logger.LogWarning(
+                    "Insufficient wallet balance for DoctorId={DoctorId}. Balance={Balance}, RefundAmount={RefundAmount}",
+                    doctorId, wallet.Balance, netAmount);
+                return;
+            }
 
             wallet.Balance -= netAmount;
             wallet.UpdatedAt = DateTime.UtcNow;
@@ -194,7 +253,7 @@ namespace Maw3ed.BLL.Services.Classes
             {
                 DoctorId = doctorId,
                 AppointmentId = payment.AppointmentId,
-                Amount = -netAmount,
+                Amount = netAmount,
                 Type = "Debit",
                 Status = "Refund"
             };

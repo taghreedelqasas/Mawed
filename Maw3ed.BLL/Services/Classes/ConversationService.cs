@@ -1,7 +1,9 @@
 ﻿using Maw3ed.BLL.DTOs.ConversationDTOs;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
+using Maw3ed.DAL.Data.Models;
 using Maw3ed.DAL.Reposatries.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,10 +15,12 @@ namespace Maw3ed.BLL.Services.Classes
     public class ConversationService : IConversationService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly AppDbContext _context;
 
-        public ConversationService(IUnitOfWork unitOfWork)
+        public ConversationService(IUnitOfWork unitOfWork, AppDbContext context)
         {
             _unitOfWork = unitOfWork;
+            _context = context;
         }
 
         public async Task<ConversationDto> GetOrCreateConversationAsync(int patientId, int doctorId)
@@ -25,10 +29,11 @@ namespace Maw3ed.BLL.Services.Classes
                 .FindAsync(a => a.PatientId == patientId
                              && a.DoctorId == doctorId
                              && (a.Status == AppointmentStatus.Confirmed
-                                 || a.Status == AppointmentStatus.Completed));
+                                 || a.Status == AppointmentStatus.Completed)
+                             && a.PaymentStatus == PaymentStatus.Paid);
 
             if (!appointments.Any())
-                throw new Exception("مينفعش تبدأ محادثة، لازم يكون عندك موعد مع الدكتور ده الأول");
+                throw new Exception("يجب حجز موعد ودفع قيمة الكشف أولاً قبل بدء المحادثة");
 
             var conversations = await _unitOfWork.GetRepository<Conversation>()
                 .FindAsync(c => c.PatientId == patientId && c.DoctorId == doctorId);
@@ -76,6 +81,19 @@ namespace Maw3ed.BLL.Services.Classes
 
             await EnsureUserInConversationAsync(conversation, senderUserId);
 
+            // If sender is the patient, verify they have a paid appointment with this doctor
+            var patient = await _unitOfWork.GetRepository<Patient>().GetByIdAsync(conversation.PatientId);
+            if (patient != null && patient.UserId == senderUserId)
+            {
+                var hasPaid = await _context.Appointments
+                    .AnyAsync(a => a.PatientId == conversation.PatientId
+                                && a.DoctorId == conversation.DoctorId
+                                && a.PaymentStatus == PaymentStatus.Paid);
+
+                if (!hasPaid)
+                    throw new Exception("يجب دفع قيمة الكشف أولاً قبل إرسال الرسائل");
+            }
+
             var message = new Message
             {
                 ConversationId = conversationId,
@@ -102,6 +120,19 @@ namespace Maw3ed.BLL.Services.Classes
                 throw new Exception("المحادثة مش موجودة");
 
             await EnsureUserInConversationAsync(conversation, senderUserId);
+
+            // If sender is the patient, verify they have a paid appointment with this doctor
+            var patient = await _unitOfWork.GetRepository<Patient>().GetByIdAsync(conversation.PatientId);
+            if (patient != null && patient.UserId == senderUserId)
+            {
+                var hasPaid = await _context.Appointments
+                    .AnyAsync(a => a.PatientId == conversation.PatientId
+                                && a.DoctorId == conversation.DoctorId
+                                && a.PaymentStatus == PaymentStatus.Paid);
+
+                if (!hasPaid)
+                    throw new Exception("يجب دفع قيمة الكشف أولاً قبل إرسال الرسائل");
+            }
 
             var message = new Message
             {

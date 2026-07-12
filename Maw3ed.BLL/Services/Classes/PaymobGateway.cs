@@ -1,7 +1,7 @@
-﻿// Maw3ed.BLL/Services/Classes/PaymobGateway.cs
-using Maw3ed.BLL.Services.Interfaces;
+﻿using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.BLL.DTOs.Payment;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -12,11 +12,47 @@ namespace Maw3ed.BLL.Services.Classes
     {
         private readonly HttpClient _http;
         private readonly IConfiguration _config;
+        private readonly ILogger<PaymobGateway> _logger;
 
-        public PaymobGateway(HttpClient http, IConfiguration config)
+        private string? _cachedAuthToken;
+        private DateTime _tokenExpiry = DateTime.MinValue;
+
+        public PaymobGateway(HttpClient http, IConfiguration config, ILogger<PaymobGateway> logger)
         {
             _http = http;
             _config = config;
+            _logger = logger;
+        }
+
+        private async Task<string> GetAuthTokenAsync()
+        {
+            if (_cachedAuthToken is not null && DateTime.UtcNow < _tokenExpiry)
+                return _cachedAuthToken;
+
+            var apiKey = _config["Paymob:ApiKey"];
+
+            var authRes = await _http.PostAsJsonAsync(
+                "https://accept.paymob.com/api/auth/tokens",
+                new { api_key = apiKey });
+
+            if (!authRes.IsSuccessStatusCode)
+            {
+                var body = await authRes.Content.ReadAsStringAsync();
+                _logger.LogError("Paymob auth failed ({Status}): {Body}", authRes.StatusCode, body);
+                throw new InvalidOperationException($"Paymob auth failed: {authRes.StatusCode}");
+            }
+
+            var auth = await authRes.Content.ReadFromJsonAsync<PaymobAuthResponse>();
+            if (auth is null || string.IsNullOrEmpty(auth.Token))
+            {
+                _logger.LogError("Paymob auth returned empty token");
+                throw new InvalidOperationException("Paymob auth returned empty token");
+            }
+
+            _cachedAuthToken = auth.Token;
+            _tokenExpiry = DateTime.UtcNow.AddMinutes(55);
+
+            return _cachedAuthToken;
         }
 
         public async Task<string> CreatePaymentLinkAsync(
@@ -27,27 +63,35 @@ namespace Maw3ed.BLL.Services.Classes
             string billingLastName,
             string billingPhone)
         {
-            var apiKey = _config["Paymob:ApiKey"];
+            var authToken = await GetAuthTokenAsync();
             var integrationId = _config["Paymob:IntegrationId"];
             var iframeId = _config["Paymob:IframeId"];
-
-            var authRes = await _http.PostAsJsonAsync(
-                "https://accept.paymob.com/api/auth/tokens",
-                new { api_key = apiKey });
-            var authToken = (await authRes.Content.ReadFromJsonAsync<PaymobAuthResponse>())!.Token;
 
             var orderRes = await _http.PostAsJsonAsync(
                 "https://accept.paymob.com/api/ecommerce/orders",
                 new
                 {
                     auth_token = authToken,
-                    delivery_needed = "false",
+                    delivery_needed = false,
                     amount_cents = amountCents,
                     currency = "EGP",
                     merchant_order_id = merchantOrderId,
                     items = Array.Empty<object>()
                 });
+
+            if (!orderRes.IsSuccessStatusCode)
+            {
+                var body = await orderRes.Content.ReadAsStringAsync();
+                _logger.LogError("Paymob order creation failed ({Status}): {Body}", orderRes.StatusCode, body);
+                throw new InvalidOperationException($"Paymob order creation failed: {orderRes.StatusCode}");
+            }
+
             var order = await orderRes.Content.ReadFromJsonAsync<PaymobOrderResponse>();
+            if (order is null)
+            {
+                _logger.LogError("Paymob order returned null");
+                throw new InvalidOperationException("Paymob order returned null");
+            }
 
             var keyRes = await _http.PostAsJsonAsync(
                 "https://accept.paymob.com/api/acceptance/payment_keys",
@@ -56,7 +100,7 @@ namespace Maw3ed.BLL.Services.Classes
                     auth_token = authToken,
                     amount_cents = amountCents,
                     expiration = 3600,
-                    order_id = order!.Id,
+                    order_id = order.Id,
                     currency = "EGP",
                     integration_id = integrationId,
                     billing_data = new
@@ -75,9 +119,22 @@ namespace Maw3ed.BLL.Services.Classes
                         postal_code = "NA"
                     }
                 });
-            var paymentKey = (await keyRes.Content.ReadFromJsonAsync<PaymobPaymentKeyResponse>())!.Token;
 
-            return $"https://accept.paymob.com/api/acceptance/iframes/{iframeId}?payment_token={paymentKey}";
+            if (!keyRes.IsSuccessStatusCode)
+            {
+                var body = await keyRes.Content.ReadAsStringAsync();
+                _logger.LogError("Paymob payment key creation failed ({Status}): {Body}", keyRes.StatusCode, body);
+                throw new InvalidOperationException($"Paymob payment key creation failed: {keyRes.StatusCode}");
+            }
+
+            var paymentKeyResp = await keyRes.Content.ReadFromJsonAsync<PaymobPaymentKeyResponse>();
+            if (paymentKeyResp is null || string.IsNullOrEmpty(paymentKeyResp.Token))
+            {
+                _logger.LogError("Paymob payment key returned empty token");
+                throw new InvalidOperationException("Paymob payment key returned empty token");
+            }
+
+            return $"https://accept.paymob.com/api/acceptance/iframes/{iframeId}?payment_token={paymentKeyResp.Token}";
         }
 
         public bool VerifyHmac(PaymobWebhookDto payload, string receivedHmac)
@@ -88,24 +145,20 @@ namespace Maw3ed.BLL.Services.Classes
                 $"{payload.AmountCents}{payload.Created}{payload.Currency}{payload.ErrorOccured}".ToLowerInvariant() +
                 $"{payload.HasParentTransaction}{payload.Id}{payload.IntegrationId}{payload.IsAuth}".ToLowerInvariant() +
                 $"{payload.IsCapture}{payload.IsRefunded}{payload.IsStandalonePayment}{payload.IsVoided}".ToLowerInvariant() +
-                $"{payload.OrderId}{payload.Owner}{payload.Pending}{payload.SourceDataPan}".ToLowerInvariant() +
+                $"{payload.MerchantOrderId}{payload.OrderId}{payload.Owner}{payload.Pending}{payload.SourceDataPan}".ToLowerInvariant() +
                 $"{payload.SourceDataSubType}{payload.SourceDataType}{payload.Success}".ToLowerInvariant();
 
             using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(hmacSecret));
             var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(concatenated));
-            var computedHmac = Convert.ToHexString(hash).ToLowerInvariant();
+            var computedBytes = hash;
+            var receivedBytes = Encoding.UTF8.GetBytes(receivedHmac.ToLowerInvariant());
 
-            return computedHmac == receivedHmac.ToLowerInvariant();
+            return CryptographicOperations.FixedTimeEquals(computedBytes, receivedBytes);
         }
 
         public async Task<bool> RefundAsync(string transactionId, int amountCents)
         {
-            var apiKey = _config["Paymob:ApiKey"];
-
-            var authRes = await _http.PostAsJsonAsync(
-                "https://accept.paymob.com/api/auth/tokens",
-                new { api_key = apiKey });
-            var authToken = (await authRes.Content.ReadFromJsonAsync<PaymobAuthResponse>())!.Token;
+            var authToken = await GetAuthTokenAsync();
 
             var refundRes = await _http.PostAsJsonAsync(
                 "https://accept.paymob.com/api/acceptance/void_refund/refund",
@@ -117,7 +170,11 @@ namespace Maw3ed.BLL.Services.Classes
                 });
 
             if (!refundRes.IsSuccessStatusCode)
+            {
+                var body = await refundRes.Content.ReadAsStringAsync();
+                _logger.LogError("Paymob refund failed ({Status}): {Body}", refundRes.StatusCode, body);
                 return false;
+            }
 
             var result = await refundRes.Content.ReadFromJsonAsync<PaymobRefundResponse>();
             return result?.Success ?? false;
