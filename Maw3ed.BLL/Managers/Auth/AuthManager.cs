@@ -134,8 +134,6 @@ namespace Maw3ed.BLL
             if (!user.IsActive)
                 return AuthResponseDto.Fail("This account has been deactivated.");
 
-            // signinManager confirm lockout,password,Emailconfirmd All in one
-
             var signInResult = await _unitOfWork.AuthRepository.CheckPasswordSignInAsync(user, dto.Password);
             if (signInResult.IsLockedOut)
                 return AuthResponseDto.Fail("Account is locked Try again later");
@@ -144,25 +142,23 @@ namespace Maw3ed.BLL
             if (!signInResult.Succeeded)
                 return AuthResponseDto.Fail("Invalid Email or password");
 
-
             var roles = await _unitOfWork.AuthRepository.GetRolesAsync(user);
 
-
-            // Block Doctor login until admin sets IsVerified = true.
+            int? doctorId = null;   // <-- 1) جديد
 
             if (roles.Contains("Doctor"))
             {
                 var doctorsList = await _unitOfWork
-         .GetRepository<Maw3ed.DAL.Doctor>()
-         .GetAllAsync();
+             .GetRepository<Maw3ed.DAL.Doctor>()
+             .GetAllAsync();
 
                 var doctor = doctorsList.FirstOrDefault(d => d.UserId == user.Id);
-                // (تأكدي من اسم الميثود عندك في الـ Generic Repository ممكن يكون GetAsync أو FindAsync)
 
                 if (doctor is not null && !doctor.IsVerified)
                     return AuthResponseDto.Fail("Your request is under review. You will be notified once your account is approved.");
-            }
 
+                doctorId = doctor?.Id;   // <-- 2) جديد
+            }
 
             var (token, expiresOn) = _tokenManager.GenerateToken(user, roles);
 
@@ -170,6 +166,7 @@ namespace Maw3ed.BLL
             {
                 IsAuthenticated = true,
                 UserId = user.Id,
+                DoctorId = doctorId,   // <-- 3) جديد
                 Email = user.Email,
                 UserName = user.UserName,
                 Roles = roles,
