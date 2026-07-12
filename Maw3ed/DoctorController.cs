@@ -4,6 +4,7 @@ using Maw3ed.DAL.DoctorDev.DoctorManager;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Maw3ed.APIs.DoctorController
 {

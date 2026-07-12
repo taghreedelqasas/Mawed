@@ -1,4 +1,9 @@
-﻿using Maw3ed.BLL;
+﻿using Maw3ed.BLL.Services.Interfaces;
+using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+using Maw3ed.BLL;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
@@ -12,11 +17,13 @@ namespace Maw3ed.APIs
     {
         private readonly IDoctorManager _doctorManager;
         private readonly IAdminDashboardService _dashboardService;
+        private readonly IAdminAppointmentService _appointmentService;
 
-        public AdminController(IDoctorManager doctorManager, IAdminDashboardService dashboardService)
+        public AdminController(IDoctorManager doctorManager, IAdminDashboardService dashboardService, IAdminAppointmentService appointmentService)
         {
             _doctorManager = doctorManager;
             _dashboardService = dashboardService;
+            _appointmentService = appointmentService;
         }
 
         // GET: api/admin/pending-doctors
@@ -82,6 +89,53 @@ namespace Maw3ed.APIs
         {
             var doctors = await _dashboardService.GetAllDoctorsAsync();
             return Ok(doctors);
+        }
+        // ============ جديد: شاشة "إدارة المواعيد" ============
+
+        // GET: api/admin/appointments?page=1&pageSize=6&status=Completed&date=2026-07-12&search=احمد
+        // كل الـ query params اختيارية. status لازم تكون قيمة من AppointmentStatus
+        // (Pending / Confirmed / Completed / Cancelled)، لو اتبعتت قيمة غلط بيتجاهلها.
+
+[HttpGet("appointments")]
+        public async Task<IActionResult> GetAppointments(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 6,
+            [FromQuery] string? status = null,
+            [FromQuery] DateTime? date = null,
+            [FromQuery] string? search = null)
+        {
+            var result = await _appointmentService.GetAppointmentsAsync(page, pageSize, status, date, search);
+            return Ok(result);
+        }
+
+        // GET: api/admin/appointments/summary
+        // بيانات الكروت الـ 4 فوق الجدول (حجوزات اليوم + عدد كل حالة).
+        [HttpGet("appointments/summary")]
+        [HttpGet("appointments-summary")]
+        public async Task<IActionResult> GetAppointmentsSummary()
+        {
+            var summary = await _appointmentService.GetSummaryAsync();
+            return Ok(summary);
+        }
+
+        // ============ جديد: "عرض الملف الشخصي" ============
+
+        // GET: api/admin/patients/{id}
+        [HttpGet("patients/{id:int}")]
+        public async Task<IActionResult> GetPatientDetail(int id)
+        {
+            var patient = await _dashboardService.GetPatientDetailAsync(id);
+            if (patient == null) return NotFound(new { message = "Patient not found." });
+            return Ok(patient);
+        }
+
+        // GET: api/admin/doctors/{id}
+        [HttpGet("doctors/{id:int}")]
+        public async Task<IActionResult> GetDoctorDetail(int id)
+        {
+            var doctor = await _dashboardService.GetDoctorDetailAsync(id);
+            if (doctor == null) return NotFound(new { message = "Doctor not found." });
+            return Ok(doctor);
         }
     }
 }

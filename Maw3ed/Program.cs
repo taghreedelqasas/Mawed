@@ -60,7 +60,7 @@ namespace Maw3ed.APIs
             builder.Services.AddScoped<IReviewService, ReviewService>();
             builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
             builder.Services.AddScoped<IDoctorService, DoctorService>();
-
+            builder.Services.AddScoped<IAdminAppointmentService, AdminAppointmentService>();
             builder.Services.AddHttpClient<IChatService, ChatService>();
 
             // ---------------- Validation ----------------

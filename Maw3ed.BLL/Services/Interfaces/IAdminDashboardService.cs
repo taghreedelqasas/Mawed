@@ -20,5 +20,10 @@ namespace Maw3ed.BLL.Services.Interfaces
 
         Task<IEnumerable<AdminPatientDto>> GetAllPatientsAsync();
         Task<IEnumerable<AdminDoctorDto>> GetAllDoctorsAsync();
+
+
+        // جديد: بروفايل مريض/طبيب كامل لباتش "عرض الملف الشخصي"
+        Task<AdminPatientDetailDto?> GetPatientDetailAsync(int patientId);
+        Task<AdminDoctorDetailDto?> GetDoctorDetailAsync(int doctorId);
     }
 }
