@@ -7,14 +7,13 @@ using System.Text;
 namespace Maw3ed.DAL
 {
     public class DoctorConfiguration
-    : AuditableEntityConfiguration<Doctor>, IEntityTypeConfiguration<Doctor> 
+        : AuditableEntityConfiguration<Doctor>, IEntityTypeConfiguration<Doctor>
     {
         public void Configure(EntityTypeBuilder<Doctor> builder)
         {
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.LicenseNumber)
-                .IsRequired()
                 .HasMaxLength(50);
 
             builder.Property(x => x.Certificate)
@@ -25,6 +24,22 @@ namespace Maw3ed.DAL
 
             builder.Property(x => x.ConsultationFee)
                 .HasColumnType("decimal(18,2)");
+
+            // New Properties
+            builder.Property(x => x.ImageProfile)
+                .HasMaxLength(500);
+
+            builder.Property(x => x.SSNImage)
+
+                .HasMaxLength(500);
+
+            builder.Property(x => x.CertificateImage)
+
+                .HasMaxLength(500);
+
+            builder.Property(x => x.LicenseImage)
+
+                .HasMaxLength(500);
 
             builder.HasOne(x => x.User)
                 .WithOne(x => x.Doctor)

@@ -10,8 +10,12 @@ namespace Maw3ed.BLL.DTOs.ConversationDTOs
     {
         public int Id { get; set; }
         public string SenderUserId { get; set; }
-        public string Content { get; set; }
+        public string? Content { get; set; }
         public bool IsRead { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public string? AttachmentUrl { get; set; }
+        public string? AttachmentName { get; set; }
+        public string? AttachmentType { get; set; }
     }
 }

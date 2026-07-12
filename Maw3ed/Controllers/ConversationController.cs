@@ -15,12 +15,16 @@ namespace Maw3ed.APIs.Controllers
     {
         private readonly IConversationService _conversationService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IWebHostEnvironment _env;
+
         public ConversationController(
             IConversationService conversationService,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IWebHostEnvironment env)
         {
             _conversationService = conversationService;
             _unitOfWork = unitOfWork;
+            _env = env;
         }
 
         // ============ Helpers ============
@@ -47,7 +51,6 @@ namespace Maw3ed.APIs.Controllers
         }
 
         // المريض يبدأ محادثة مع دكتور
-        // POST: api/Conversation/start/{doctorId}
         [HttpPost("start/{doctorId}")]
         [Authorize(Roles = "Patient")]
         public async Task<IActionResult> StartConversation(int doctorId)
@@ -67,8 +70,7 @@ namespace Maw3ed.APIs.Controllers
             }
         }
 
-        // الدكتور يبدأ محادثة مع مريض ← جديد
-        // POST: api/Conversation/doctor-start/{patientId}
+        // الدكتور يبدأ محادثة مع مريض
         [HttpPost("doctor-start/{patientId}")]
         [Authorize(Roles = "Doctor")]
         public async Task<IActionResult> DoctorStartConversation(int patientId)
@@ -118,9 +120,23 @@ namespace Maw3ed.APIs.Controllers
         [HttpGet("{conversationId}/messages")]
         public async Task<IActionResult> GetMessages(int conversationId)
         {
-            var messages = await _conversationService
-                .GetMessagesAsync(conversationId);
-            return Ok(messages);
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            try
+            {
+                var messages = await _conversationService
+                    .GetMessagesAsync(conversationId, userId);
+                return Ok(messages);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         // POST: api/Conversation/{conversationId}/messages
@@ -137,20 +153,85 @@ namespace Maw3ed.APIs.Controllers
                     .SendMessageAsync(conversationId, userId, dto);
                 return Ok(message);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, ex.Message);
+            }
             catch (Exception ex)
             {
                 return BadRequest(ex.Message);
             }
         }
-        // PUT: api/Conversation/1/read
+
+        // POST: api/Conversation/{conversationId}/attachments
+        // بيستخدم لإرسال ملف (نتائج تحاليل / تقرير) زي شاشة الشات
+        [HttpPost("{conversationId}/attachments")]
+        public async Task<IActionResult> SendAttachment(
+            int conversationId, [FromForm] IFormFile file, [FromForm] string? caption)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            if (file == null || file.Length == 0)
+                return BadRequest("لازم تختار ملف");
+
+            // تحقق بسيط من نوع الملف
+            var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png" };
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(ext))
+                return BadRequest("نوع الملف مش مدعوم");
+
+            try
+            {
+                var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "chat-attachments");
+                Directory.CreateDirectory(uploadsFolder);
+
+                var uniqueFileName = $"{Guid.NewGuid()}{ext}";
+                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+
+                var attachmentUrl = $"/uploads/chat-attachments/{uniqueFileName}";
+                var attachmentType = ext == ".pdf" ? "pdf" : "image";
+
+                var message = await _conversationService.SendAttachmentAsync(
+                    conversationId, userId, attachmentUrl, file.FileName, attachmentType, caption);
+
+                return Ok(message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // PUT: api/Conversation/{conversationId}/read
         [HttpPut("{conversationId}/read")]
         public async Task<IActionResult> MarkAsRead(int conversationId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId == null) return Unauthorized();
 
-            await _conversationService.MarkMessagesAsReadAsync(conversationId, userId);
-            return Ok("تم تحديد الرسايل كمقروءة");
+            try
+            {
+                await _conversationService.MarkMessagesAsReadAsync(conversationId, userId);
+                return Ok("تم تحديد الرسايل كمقروءة");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Maw3ed.DAL.DoctorDev.DoctorDtos;
+using Maw3ed.DAL.DoctorDev.DoctorManager;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -34,7 +35,7 @@ namespace Maw3ed.APIs.DoctorController
                 return NotFound();
             return Ok(doctor);
         }
-
+     
         // بس الأدمن يضيف/يعدل/يمسح
         [HttpPost]
         [Authorize(Roles = "Admin")]
@@ -75,5 +76,7 @@ namespace Maw3ed.APIs.DoctorController
             await _doctorManager.DeleteAsync(id);
             return NoContent();
         }
+
+
     }
 }

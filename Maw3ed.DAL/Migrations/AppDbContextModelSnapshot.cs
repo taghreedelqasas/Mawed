@@ -76,7 +76,7 @@ namespace Maw3ed.DAL.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int?>("Gender")
+                    b.Property<int>("Gender")
                         .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
@@ -386,6 +386,98 @@ namespace Maw3ed.DAL.Migrations
                     b.ToTable("MedicalFile");
                 });
 
+            modelBuilder.Entity("Maw3ed.DAL.Data.Models.MedicalImageAnalysis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AIExplanation")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PatientId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("MedicalImageAnalyses");
+                });
+
+            modelBuilder.Entity("Maw3ed.DAL.Data.Models.MedicalReportAnalysis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AIExplanation")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PatientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReportText")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("MedicalReportAnalyses");
+                });
+
             modelBuilder.Entity("Maw3ed.DAL.Data.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -548,6 +640,10 @@ namespace Maw3ed.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("CertificateImage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<decimal>("ConsultationFee")
                         .HasColumnType("decimal(18,2)");
 
@@ -564,15 +660,24 @@ namespace Maw3ed.DAL.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ImageProfile")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<bool>("IsVerified")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LicenseImage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LicenseNumber")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("SSNImage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -646,6 +751,15 @@ namespace Maw3ed.DAL.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AttachmentName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AttachmentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AttachmentUrl")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Content")
                         .IsRequired()
@@ -1007,6 +1121,24 @@ namespace Maw3ed.DAL.Migrations
                     b.Navigation("Patient");
                 });
 
+            modelBuilder.Entity("Maw3ed.DAL.Data.Models.MedicalImageAnalysis", b =>
+                {
+                    b.HasOne("Maw3ed.DAL.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId");
+
+                    b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("Maw3ed.DAL.Data.Models.MedicalReportAnalysis", b =>
+                {
+                    b.HasOne("Maw3ed.DAL.Patient", "Patient")
+                        .WithMany("MedicalReportAnalyses")
+                        .HasForeignKey("PatientId");
+
+                    b.Navigation("Patient");
+                });
+
             modelBuilder.Entity("Maw3ed.DAL.Data.Models.Notification", b =>
                 {
                     b.HasOne("Maw3ed.DAL.ApplicationUser", "User")
@@ -1229,6 +1361,8 @@ namespace Maw3ed.DAL.Migrations
                     b.Navigation("Conversations");
 
                     b.Navigation("MedicalFiles");
+
+                    b.Navigation("MedicalReportAnalyses");
 
                     b.Navigation("Reviews");
                 });

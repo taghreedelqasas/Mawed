@@ -130,7 +130,14 @@ namespace Maw3ed.BLL.Services.Classes
                 Status = AppointmentStatus.Pending,
                 Notes = dto.Notes
             };
-
+            if (!string.IsNullOrWhiteSpace(dto.PatientFullName))
+            {
+                appointment.Notes = $"{dto.Notes}\n" +
+                    $"الاسم: {dto.PatientFullName}\n" +
+                    $"التليفون: {dto.PatientPhone}\n" +
+                    $"الجنس: {dto.PatientGender}\n" +
+                    $"العمر: {dto.PatientAge}";
+            }
             slot.IsBooked = true;
             await _unitOfWork.GetRepository<Appointment>().AddAsync(appointment);
             _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);

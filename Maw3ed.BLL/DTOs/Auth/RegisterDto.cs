@@ -30,7 +30,11 @@ namespace Maw3ed.BLL
         public string? Address { get; set; }
         public DateTime? GraduationDate { get; set; }
         public int? DepartmentId { get; set; }
+        public string? SSNImage { get; set; }
+        public string? CertificateImage { get; set; }
+        public string? LicenseImage { get; set; }
+        public string? ImageProfile { get; set; }
 
-       
+
     }
 }

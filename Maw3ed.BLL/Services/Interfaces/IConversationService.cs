@@ -9,23 +9,19 @@ namespace Maw3ed.BLL.Services.Interfaces
 {
     public interface IConversationService
     {
-        // ابدأ محادثة جديدة أو جيب الموجودة
         Task<ConversationDto> GetOrCreateConversationAsync(int patientId, int doctorId);
-
-        // جيب كل محادثات المريض
         Task<IEnumerable<ConversationDto>> GetPatientConversationsAsync(int patientId);
-
-        // جيب كل محادثات الدكتور
         Task<IEnumerable<ConversationDto>> GetDoctorConversationsAsync(int doctorId);
 
-        // بعت رسالة
         Task<MessageDto> SendMessageAsync(int conversationId, string senderUserId, SendMessageDto dto);
 
-        // جيب رسايل المحادثة
-        Task<IEnumerable<MessageDto>> GetMessagesAsync(int conversationId);
+        Task<MessageDto> SendAttachmentAsync(
+            int conversationId, string senderUserId,
+            string attachmentUrl, string attachmentName, string attachmentType, string? caption);
+
+        Task<IEnumerable<MessageDto>> GetMessagesAsync(int conversationId, string userId);
+
         Task MarkMessagesAsReadAsync(int conversationId, string userId);
-
-
     }
 
 

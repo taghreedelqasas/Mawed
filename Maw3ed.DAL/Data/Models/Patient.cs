@@ -30,5 +30,8 @@ namespace Maw3ed.DAL
 
         public ICollection<MedicalFile> MedicalFiles { get; set; }
         = new List<MedicalFile>();
+
+        public ICollection<MedicalReportAnalysis> MedicalReportAnalyses { get; set; }
+    = new List<MedicalReportAnalysis>();
     }
 }

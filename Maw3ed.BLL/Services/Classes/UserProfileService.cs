@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Hosting;
-using Maw3ed.BLL.DTOs.PatientDTOs;
+﻿using Maw3ed.BLL.DTOs.PatientDTOs;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
+using Maw3ed.DAL.Migrations;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using System;
@@ -36,6 +37,7 @@ namespace Maw3ed.BLL.Services.Classes
 
             return new UserProfileDto
             {
+               
                 FullName = $"{user.FirstName} {user.LastName}",
                 Email = user.Email!,
                 PhoneNumber = user.PhoneNumber,

@@ -38,7 +38,9 @@ namespace Maw3ed.DAL
         public DbSet<WalletTransaction> WalletTransactions { get; set; }
 
         public DbSet<WithdrawRequest> WithdrawRequests { get; set; }
+        public DbSet<MedicalReportAnalysis> MedicalReportAnalyses { get; set; }
 
+        public DbSet<MedicalImageAnalysis> MedicalImageAnalyses { get; set; }
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

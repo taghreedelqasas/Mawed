@@ -38,7 +38,8 @@ namespace Maw3ed.DAL
                     Email = AdminEmail,
                     SSN = AdminSSN,
                     EmailConfirmed = true,   // Admin doesn't need email confirmation.
-                    IsActive = true
+                    IsActive = true,
+                    Gender = Gender.Male
                 };
 
                 var result = await userManager.CreateAsync(admin, AdminPassword);

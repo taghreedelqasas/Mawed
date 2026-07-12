@@ -1,5 +1,4 @@
-﻿// Maw3ed.Api/Controllers/WalletController.cs
-using Maw3ed.BLL.DTOs.Wallet;
+﻿using Maw3ed.BLL.DTOs.Wallet;
 using Maw3ed.BLL.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

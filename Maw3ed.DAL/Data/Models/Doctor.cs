@@ -18,9 +18,10 @@ namespace Maw3ed.DAL
         public DateTime? VerifiedAt { get; set; }
         public DateTime GraduationDate { get; set; }
 
-        // التعديل الجديد هنا
         public string? ImageProfile { get; set; }
-
+        public string? SSNImage { get; set; }
+        public string? CertificateImage { get; set; }
+        public string? LicenseImage { get; set; }
         public string UserId { get; set; }
         public ApplicationUser User { get; set; }
         public int DepartmentId { get; set; }

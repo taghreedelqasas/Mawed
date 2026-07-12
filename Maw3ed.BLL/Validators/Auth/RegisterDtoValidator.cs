@@ -1,11 +1,13 @@
 ﻿using FluentValidation;
+
 using Maw3ed.DAL;
+using Maw3ed.DAL.Reposatries.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
-using Maw3ed.DAL.Reposatries.Interfaces; 
+
 namespace Maw3ed.BLL
 {
     public class RegisterDtoValidator : AbstractValidator<RegisterDto>
@@ -30,19 +32,15 @@ namespace Maw3ed.BLL
             RuleFor(x => x.ConfirmPassword).Equal(x => x.Password)
                 .WithMessage("Password and confirmation password do not match.");
 
-            RuleFor(x => x.SSN)
-                .Cascade(CascadeMode.Stop)
-                .NotEmpty().WithMessage("Your SSN is Reuired")
-                .Length(14).WithMessage("Your SSN must be 14 Number")
-                .Matches(@"^[23]\d{13}$").WithMessage("Invalid SSN")
+            When(x => x.Role == "Patient", () =>
+            {
+                RuleFor(x => x.SSN);
+            });
+            When(x => x.Role == "Doctor", () =>
+            {
+                RuleFor(x => x.SSN);
 
-                .MustAsync(async (ssn, cancellation) =>
-                {
-                    bool isUnique = !await _unitOfWork.AuthRepository.AnyAsync(u => u.SSN == ssn, cancellation);
-                    return isUnique;
-                }).WithMessage("SSN is Already Existttt.");
-
-
+            });
             RuleFor(x => x.BirthDate).LessThan(System.DateTime.Now)
                 .WithMessage("Birth date must be in the past.");
 
@@ -53,9 +51,9 @@ namespace Maw3ed.BLL
             // ---- Doctor-only fields ----
             When(x => x.Role == "Doctor", () =>
             {
-                RuleFor(x => x.LicenseNumber).NotEmpty();
-                RuleFor(x => x.Certificate).NotEmpty();
-                RuleFor(x => x.ConsultationFee).NotNull().GreaterThan(0);
+                RuleFor(x => x.LicenseNumber);
+                RuleFor(x => x.Certificate);
+                RuleFor(x => x.ConsultationFee);
                 RuleFor(x => x.Address).NotEmpty();
                 RuleFor(x => x.GraduationDate).NotNull();
                 RuleFor(x => x.DepartmentId).NotNull().GreaterThan(0);

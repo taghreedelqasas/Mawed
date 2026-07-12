@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using Maw3ed.DAL;
 using Microsoft.AspNetCore.WebUtilities;
-using Maw3ed.DAL.Reposatries.Interfaces; 
+using Maw3ed.DAL.Reposatries.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -64,7 +64,7 @@ namespace Maw3ed.BLL
             // Create the linked Patient / Doctor row (1-1 with ApplicationUser).
             if (dto.Role == "Patient")
             {
-                await  _unitOfWork.GetRepository<Patient>().AddAsync(new Patient
+                await _unitOfWork.GetRepository<Patient>().AddAsync(new Patient
                 {
                     UserId = user.Id,
                     CreatedAt = DateTime.UtcNow
@@ -72,25 +72,28 @@ namespace Maw3ed.BLL
             }
             else if (dto.Role == "Doctor")
             {
-                await   _unitOfWork.GetRepository<Doctor>().AddAsync(new Doctor
+                await _unitOfWork.GetRepository<Doctor>().AddAsync(new Doctor
                 {
                     UserId = user.Id,
                     LicenseNumber = dto.LicenseNumber!,
-                    Certificate = dto.Certificate!,
-                    ConsultationFee = dto.ConsultationFee!.Value,
+                    Certificate = dto.Certificate,
+
                     Address = dto.Address!,
-                    GraduationDate = dto.GraduationDate!.Value,
+                    GraduationDate = dto.GraduationDate.Value,
+
+                    SSNImage = dto.SSNImage,
+                    CertificateImage = dto.CertificateImage,
+                    LicenseImage = dto.LicenseImage,
                     DepartmentId = dto.DepartmentId!.Value,
                     IsVerified = false,
                     CreatedAt = DateTime.UtcNow
                 });
             }
 
-             await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
             //generate confirmation token and resend
             var rawToken = await _unitOfWork.AuthRepository.GenerateEmailConfirmationTokenAsync(user);
             var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
-
             var confirmationLink = $"{dto.ClientBaseUrl}/api/auth/confirm-email?userId={user.Id}&token={encodedToken}";
 
             await _emailService.SendEmailConfirmationAsync(
@@ -173,9 +176,9 @@ namespace Maw3ed.BLL
                 Token = token,
                 ExpiresOn = expiresOn
             };
-        } 
+        }
 
-            public async Task<AuthResponseDto> ConfirmEmailAsync(ConfirmEmailDto dto)
+        public async Task<AuthResponseDto> ConfirmEmailAsync(ConfirmEmailDto dto)
         {
             var user = await _unitOfWork.AuthRepository.FindByIdAsync(dto.UserId);
             if (user is null)
@@ -186,7 +189,6 @@ namespace Maw3ed.BLL
 
             //Decoding token 
             var decodedToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(dto.Token));
-
             var result = await _unitOfWork.AuthRepository.ConfirmEmailAsync(user, decodedToken);
             if (!result.Succeeded)
                 return AuthResponseDto.Fail(result.Errors.Select(e => e.Description).ToArray());
@@ -268,5 +270,4 @@ namespace Maw3ed.BLL
         }
 
     }
-    }
-
+}

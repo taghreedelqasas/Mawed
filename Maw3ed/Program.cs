@@ -1,6 +1,11 @@
 using FluentValidation;
 using Maw3ed.APIs.Hubs;
 using Maw3ed.BLL;
+using Maw3ed.BLL.AI.Configuration;
+using Maw3ed.BLL.AI.Interfaces;
+using Maw3ed.BLL.AI.MedicalImages;
+using Maw3ed.BLL.AI.MedicalReports;
+using Maw3ed.BLL.AI.Services;
 using Maw3ed.BLL.Services.Classes;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.BLL.Validators;
@@ -11,13 +16,12 @@ using Maw3ed.DAL.Reposatries.Classes;
 using Maw3ed.DAL.Reposatries.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using System;
-using System.Collections.Generic;
-using System.Linq.Expressions;
+using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading.RateLimiting;
 
 namespace Maw3ed.APIs
 {
@@ -28,33 +32,48 @@ namespace Maw3ed.APIs
             var builder = WebApplication.CreateBuilder(args);
 
             // ==========================================================
-            // 1. REGISTRATION OF SERVICES (Dependency Injection Container)
+            // 1. REGISTRATION OF SERVICES (Dependency Injection)
             // ==========================================================
 
-            // DAL Services
-            builder.Services.AddDALServices(builder.Configuration);
-            //BLL
-            builder.Services.AddBLLServices(builder.Configuration);
-            builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>();
-            builder.Services.AddScoped<IWalletService, WalletService>();
+            Console.WriteLine(builder.Configuration.GetConnectionString("DefaultConnection"));
 
+            // ---------------- DAL ----------------
+            builder.Services.AddDALServices(builder.Configuration);
+
+            // ---------------- BLL ----------------
+            builder.Services.AddBLLServices(builder.Configuration);
+
+            // ---------------- Payment Services ----------------
+            builder.Services.AddHttpClient<IPaymobGateway, PaymobGateway>();
+
+            builder.Services.AddScoped<IWalletService, WalletService>();
             builder.Services.AddScoped<IWithdrawService, WithdrawService>();
-            // في Program.cs
             builder.Services.AddScoped<IAdminWithdrawService, AdminWithdrawService>();
             builder.Services.AddScoped<IPaymentService, PaymentService>();
 
-            #region Services Merna
+            // ---------------- Application Services ----------------
             builder.Services.AddScoped<IMedicalFileService, MedicalFileService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
-            builder.Services.AddValidatorsFromAssemblyContaining<UpdateUserProfileDtoValidator>();
             builder.Services.AddScoped<IUserProfileService, UserProfileService>();
             builder.Services.AddScoped<IConversationService, ConversationService>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<IReviewService, ReviewService>();
-            builder.Services.AddScoped<IAdminDashboardService , AdminDashboardService>();
-            #endregion
+            builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+            builder.Services.AddScoped<IDoctorService, DoctorService>();
 
-            //// Identity
+            builder.Services.AddHttpClient<IChatService, ChatService>();
+
+            // ---------------- Validation ----------------
+            builder.Services.AddValidatorsFromAssemblyContaining<UpdateUserProfileDtoValidator>();
+
+            // ---------------- AI ----------------
+            builder.Services.Configure<StudentBedrockSettings>(
+                builder.Configuration.GetSection("StudentBedrock"));
+
+            builder.Services.AddScoped<IMedicalReportService, MedicalReportService>();
+            builder.Services.AddHttpClient<IMedicalImageService, MedicalImageService>();
+
+            // ---------------- Identity ----------------
             //builder.Services
             //    .AddIdentity<ApplicationUser, ApplicationRole>(options =>
             //    {
@@ -65,53 +84,94 @@ namespace Maw3ed.APIs
             //    .AddEntityFrameworkStores<AppDbContext>()
             //    .AddDefaultTokenProviders();
 
-            // إعدادات الـ JWT Authentication
-            var jwtKey = builder.Configuration["Jwt:Key"]
-                ?? throw new InvalidOperationException("Jwt:Key missing in appsettings.json");
-
+            // ---------------- JWT Authentication ----------------
+            builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("JwtSettings"));
+            var jwtSettings = builder.Configuration
+                .GetSection("JwtSettings")
+                .Get<JwtSettings>()!;
             builder.Services
-                .AddAuthentication(opt =>
+                .AddAuthentication(options =>
                 {
-                    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
                 })
-.AddJwtBearer(opt =>
-{
-    opt.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-    };
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = jwtSettings.Issuer,
 
-    opt.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
-        {
-            Console.WriteLine("JWT ERROR:");
-            Console.WriteLine(context.Exception);
-            return Task.CompletedTask;
-        }
-    };
-});
+                        ValidateAudience = true,
+                        ValidAudience = jwtSettings.Audience,
 
-            // Controllers
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            Encoding.UTF8.GetBytes(jwtSettings.Key)
+                        ),
+
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.Zero
+                    };
+
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnAuthenticationFailed = context =>
+                        {
+                            Console.WriteLine("JWT ERROR:");
+                            Console.WriteLine(context.Exception);
+                            return Task.CompletedTask;
+                        },
+
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+
+                            if (!string.IsNullOrEmpty(accessToken) &&
+                                path.StartsWithSegments("/hubs/chat"))
+                            {
+                                context.Token = accessToken;
+                            }
+
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
+
+            // ---------------- Controllers ----------------
             builder.Services.AddControllers();
 
-            // OpenAPI (تعتمد عليها Scalar)
+            // ---------------- OpenAPI / Scalar ----------------
             builder.Services.AddOpenApi();
 
-            // SignalR
+            // ---------------- SignalR ----------------
             builder.Services.AddSignalR();
 
-            // CORS
+            // ---------------- Rate Limiting ----------------
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+                options.AddPolicy("chat", httpContext =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey:
+                            httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                            ?? "anonymous",
+                        factory: _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 10,
+                            Window = TimeSpan.FromHours(1),
+                            QueueLimit = 0
+                        }));
+            });
+
+            // ---------------- CORS ----------------
             var allowedOrigins = builder.Configuration
-           .GetSection("Cors:AllowedOrigins")
-           .Get<string[]>() ?? Array.Empty<string>();
+                .GetSection("Cors:AllowedOrigins")
+                .Get<string[]>() ?? Array.Empty<string>();
 
             builder.Services.AddCors(options =>
             {
@@ -123,8 +183,7 @@ namespace Maw3ed.APIs
                           .AllowCredentials();
                 });
             });
-
-            // المجر الخاص بالأطباء والـ Unit of Work
+            // ---------------- Repositories & Managers ----------------
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IDoctorAvailabilityManager, DoctorAvailabilityManager>();
             builder.Services.AddScoped<IDoctorManager, DoctorManager>();
@@ -132,30 +191,37 @@ namespace Maw3ed.APIs
             // ==========================================================
             // 2. HTTP REQUEST PIPELINE (Middlewares)
             // ==========================================================
+
             var app = builder.Build();
-            using (var scope = app.Services.CreateScope())
-            {
-                var services = scope.ServiceProvider;
-                await AdminSeeder.SeedAsync(services);
-            }
-            // تفعيل الـ Scalar والـ OpenAPI في بيئة التطوير
+
+            //using (var scope = app.Services.CreateScope())
+            //{
+            //    var services = scope.ServiceProvider;
+            //    await AdminSeeder.SeedAsync(services);
+            //}
+
             if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
             {
                 app.MapOpenApi();
                 app.MapScalarApiReference();
             }
 
-            app.UseStaticFiles();
-            app.UseCors("AllowAll");
-
             app.UseHttpsRedirection();
 
-            // ترتيب الـ Authentication والـ Authorization حرج جداً للـ [Authorize]
+            app.UseStaticFiles();
+
+            app.UseCors("AllowAll");
+
             app.UseAuthentication();
+
             app.UseAuthorization();
 
+            app.UseRateLimiter();
+
             app.MapHub<ChatHub>("/hubs/chat");
+
             app.MapControllers();
+
             app.Run();
         }
     }

@@ -21,7 +21,7 @@ namespace Maw3ed.DAL
 
         public DateTime BirthDate { get; set; }
         public string? ProfilePictureUrl { get; set; } // ← الحقل الجديد
-        public Gender? Gender { get; set; }
+        public Gender Gender { get; set; }
 
 
         public bool IsActive { get; set; } = true;
