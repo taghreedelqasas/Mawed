@@ -6,7 +6,6 @@ namespace Maw3ed.DAL
 {
     public enum PaymentMethod
     {
-        Cash,
         CreditCard,
         Wallet
     }
