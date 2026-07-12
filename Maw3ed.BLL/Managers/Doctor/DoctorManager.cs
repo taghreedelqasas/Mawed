@@ -169,5 +169,54 @@ namespace Maw3ed.BLL
 
             return (true, "Doctor approved successfully.");
         }
+
+        // جوه DoctorManager.cs - implementation
+
+        public async Task<DoctorReadDTo?> GetByUserIdAsync(string userId)
+        {
+            var doctors = await _unitOfWork
+                .GetRepository<Doctor>()
+                .GetAllAsync(d => d.UserId == userId, d => d.Department, d => d.User);
+
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor == null)
+                return null;
+
+            return new DoctorReadDTo
+            {
+                Id = doctor.Id,
+                LicenseNumber = doctor.LicenseNumber,
+                ConsultationFee = doctor.ConsultationFee,
+                Address = doctor.Address,
+                IsVerified = doctor.IsVerified,
+                DepartmentName = doctor.Department?.Name ?? "",
+                UserName = doctor.User?.UserName ?? "",
+                ImageProfile = doctor.ImageProfile
+            };
+        }
+
+        public async Task UpdateOwnProfileAsync(string userId, DoctorUpdateDto doctorDto)
+        {
+            var doctors = await _unitOfWork
+                .GetRepository<Doctor>()
+                .GetAllAsync(d => d.UserId == userId);
+
+            var existingDoctor = doctors.FirstOrDefault();
+
+            if (existingDoctor == null)
+                throw new Exception("Doctor profile not found for this user.");
+
+            if (doctorDto.LicenseNumber != null) existingDoctor.LicenseNumber = doctorDto.LicenseNumber;
+            if (doctorDto.Certificate != null) existingDoctor.Certificate = doctorDto.Certificate;
+            if (doctorDto.ConsultationFee != null) existingDoctor.ConsultationFee = doctorDto.ConsultationFee.Value;
+            if (doctorDto.Address != null) existingDoctor.Address = doctorDto.Address;
+            if (doctorDto.GraduationDate != null) existingDoctor.GraduationDate = doctorDto.GraduationDate.Value;
+            if (doctorDto.DepartmentId != null) existingDoctor.DepartmentId = doctorDto.DepartmentId.Value;
+            if (doctorDto.ImageProfile != null) existingDoctor.ImageProfile = doctorDto.ImageProfile;
+
+            _unitOfWork.GetRepository<Doctor>().Update(existingDoctor);
+            await _unitOfWork.SaveChangesAsync();
+        }
     }
 }

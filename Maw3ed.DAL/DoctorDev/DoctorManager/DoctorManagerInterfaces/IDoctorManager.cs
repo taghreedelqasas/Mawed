@@ -14,5 +14,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces
         Task UpdateAsync(DoctorUpdateDto doctor);
   
         Task DeleteAsync(int id);
+        Task<DoctorReadDTo?> GetByUserIdAsync(string userId);
+        Task UpdateOwnProfileAsync(string userId, DoctorUpdateDto doctorDto);
     }
 }

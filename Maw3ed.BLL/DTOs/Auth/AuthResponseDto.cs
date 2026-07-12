@@ -9,6 +9,7 @@ namespace Maw3ed.BLL
         public bool IsAuthenticated { get; set; }
 
         public string? UserId { get; set; }
+        public int? DoctorId { get; set; } 
         public string? Email { get; set; }
         public string? UserName { get; set; }
         public IList<string> Roles { get; set; } = new List<string>();

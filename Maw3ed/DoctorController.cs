@@ -77,6 +77,37 @@ namespace Maw3ed.APIs.DoctorController
             return NoContent();
         }
 
+        [HttpGet("me")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<IActionResult> GetMyProfile()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
+            var doctor = await _doctorManager.GetByUserIdAsync(userId);
+            if (doctor == null) return NotFound();
+            return Ok(doctor);
+        }
+
+        [HttpPut("me")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<IActionResult> UpdateMyProfile(DoctorUpdateDto doctorDto)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                await _doctorManager.UpdateOwnProfileAsync(userId, doctorDto);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
     }
 }
