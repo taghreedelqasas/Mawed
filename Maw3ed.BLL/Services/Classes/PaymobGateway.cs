@@ -142,16 +142,21 @@ namespace Maw3ed.BLL.Services.Classes
             var hmacSecret = _config["Paymob:HmacSecret"]!;
 
             var concatenated =
-                $"{payload.AmountCents}{payload.Created}{payload.Currency}{payload.ErrorOccured}".ToLowerInvariant() +
-                $"{payload.HasParentTransaction}{payload.Id}{payload.IntegrationId}{payload.IsAuth}".ToLowerInvariant() +
-                $"{payload.IsCapture}{payload.IsRefunded}{payload.IsStandalonePayment}{payload.IsVoided}".ToLowerInvariant() +
-                $"{payload.MerchantOrderId}{payload.OrderId}{payload.Owner}{payload.Pending}{payload.SourceDataPan}".ToLowerInvariant() +
-                $"{payload.SourceDataSubType}{payload.SourceDataType}{payload.Success}".ToLowerInvariant();
+                $"{payload.AmountCents}{payload.Created}{payload.Currency}{payload.ErrorOccured}" +
+                $"{payload.HasParentTransaction}{payload.Id}{payload.IntegrationId}{payload.Is3dSecure}" +
+                $"{payload.IsAuth}{payload.IsCapture}{payload.IsRefunded}{payload.IsStandalonePayment}" +
+                $"{payload.IsVoided}{payload.OrderId}{payload.Owner}{payload.Pending}" +
+                $"{payload.SourceDataPan}{payload.SourceDataSubType}{payload.SourceDataType}{payload.Success}";
+
+            var concatenatedLower = concatenated.ToLowerInvariant();
 
             using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(hmacSecret));
-            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(concatenated));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(concatenatedLower));
             var computedBytes = hash;
             var receivedBytes = Convert.FromHexString(receivedHmac);
+
+            var computedHex = Convert.ToHexString(hash).ToLowerInvariant();
+            _logger.LogDebug("HMAC computed={Computed}, received={Received}, match={Match}", computedHex, receivedHmac.ToLowerInvariant(), computedHex == receivedHmac.ToLowerInvariant());
 
             return CryptographicOperations.FixedTimeEquals(computedBytes, receivedBytes);
         }
