@@ -2,6 +2,7 @@
 using Maw3ed.BLL.DTOs.Payment;
 using Maw3ed.BLL.Services.Classes;
 using Maw3ed.BLL.Services.Interfaces;
+using Maw3ed.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -13,29 +14,47 @@ namespace Maw3ed.Api.Controllers
     public class PaymentsController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
+        private readonly ILogger<PaymentsController> _logger;
 
-        public PaymentsController(IPaymentService paymentService)
+        public PaymentsController(IPaymentService paymentService, ILogger<PaymentsController> logger)
         {
             _paymentService = paymentService;
+            _logger = logger;
         }
 
         [Authorize(Roles = "Patient")]
         [HttpPost("initiate/{appointmentId}")]
-        public async Task<IActionResult> Initiate(int appointmentId)
+        public async Task<IActionResult> Initiate(int appointmentId, [FromBody] InitiatePaymentDto? dto = null)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-            var result = await _paymentService.InitiatePaymentAsync(userId, appointmentId);
-            return result.Success ? Ok(result) : BadRequest(result);
+            var result = await _paymentService.InitiatePaymentAsync(userId, appointmentId, dto?.PaymentMethod);
+            return result.ToActionResult(this);
         }
 
         [AllowAnonymous]
         [HttpPost("paymob-webhook")]
         public async Task<IActionResult> PaymobWebhook(
-            [FromQuery] string hmac,
+            [FromQuery] string? hmac,
             [FromBody] PaymobWebhookWrapperDto wrapper)
         {
-            await _paymentService.HandlePaymobWebhookAsync(wrapper.Obj, hmac);
-            return Ok(); // دايمًا 200 لـ Paymob حتى لو فشل التحقق الداخلي، عشان متعملش retry storm
+            _logger.LogInformation("Paymob webhook received. HMAC present: {HasHmac}", !string.IsNullOrEmpty(hmac));
+
+            if (string.IsNullOrEmpty(hmac))
+            {
+                _logger.LogWarning("Paymob webhook received with no HMAC");
+                return Ok();
+            }
+
+            try
+            {
+                await _paymentService.HandlePaymobWebhookAsync(wrapper.Obj, hmac);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing Paymob webhook");
+            }
+
+            return Ok();
         }
     }
 }
