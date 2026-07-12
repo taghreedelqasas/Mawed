@@ -24,6 +24,9 @@ namespace Maw3ed.BLL.DTOs.Payment
         [JsonPropertyName("integration_id")]
         public long IntegrationId { get; set; }
 
+        [JsonPropertyName("is_3d_secure")]
+        public bool Is3dSecure { get; set; }
+
         [JsonPropertyName("is_auth")]
         public bool IsAuth { get; set; }
 
@@ -40,7 +43,10 @@ namespace Maw3ed.BLL.DTOs.Payment
         public bool IsVoided { get; set; }
 
         [JsonPropertyName("order")]
-        public long OrderId { get; set; }
+        public PaymobOrderRef? Order { get; set; }
+
+        [JsonIgnore]
+        public long OrderId => Order?.Id ?? 0;
 
         public long Owner { get; set; }
 
@@ -69,5 +75,10 @@ namespace Maw3ed.BLL.DTOs.Payment
         [JsonPropertyName("sub_type")]
         public string SubType { get; set; } = "";
         public string Type { get; set; } = "";
+    }
+
+    public class PaymobOrderRef
+    {
+        public long Id { get; set; }
     }
 }

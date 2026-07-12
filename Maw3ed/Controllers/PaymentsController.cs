@@ -47,7 +47,8 @@ namespace Maw3ed.Api.Controllers
 
             try
             {
-                await _paymentService.HandlePaymobWebhookAsync(wrapper.Obj, hmac);
+                var result = await _paymentService.HandlePaymobWebhookAsync(wrapper.Obj, hmac);
+                _logger.LogInformation("Webhook processing result: Success={Success}, Message={Message}", result.Success, result.Message);
             }
             catch (Exception ex)
             {
