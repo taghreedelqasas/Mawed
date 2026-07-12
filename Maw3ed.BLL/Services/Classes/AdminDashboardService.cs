@@ -1,6 +1,12 @@
 ﻿using Maw3ed.BLL.DTOs.AdminDashboard;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
+using Maw3ed.DAL.Data.Models;
+
+using Maw3ed.BLL.DTOs.AdminDashboard;
+using Maw3ed.BLL.Services.Interfaces;
+using Maw3ed.DAL;
+using Maw3ed.DAL.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -85,7 +91,7 @@ namespace Maw3ed.BLL.Services.Classes
                 .Where(p => p.Status == PaymentStatus.Paid && p.CreatedAt < monthStart)
                 .SumAsync(p => (decimal?)p.Amount) ?? 0;
 
-            var totalCommission = await _context.Payments
+var totalCommission = await _context.Payments
                 .Where(p => p.Status == PaymentStatus.Paid)
                 .SumAsync(p => (decimal?)p.SystemFee) ?? 0;
             var totalCommissionLastMonth = await _context.Payments
@@ -275,6 +281,111 @@ namespace Maw3ed.BLL.Services.Classes
 
             return doctors;
         }
+
+        // ── جديد: بروفايل مريض كامل لـ "عرض الملف الشخصي" ─────────────
+        public async Task<AdminPatientDetailDto?> GetPatientDetailAsync(int patientId)
+        {
+            var patient = await _context.Patients
+                .Include(p => p.User)
+                .Include(p => p.Appointments)
+                .Include(p => p.MedicalFiles)
+                .FirstOrDefaultAsync(p => p.Id == patientId);
+
+            if (patient == null) return null;
+
+            return new AdminPatientDetailDto
+            {
+                Id = patient.Id,
+                FullName = patient.User.FirstName + " " + patient.User.LastName,
+                Email = patient.User.Email!,
+                PhoneNumber = patient.User.PhoneNumber,
+                ProfilePictureUrl = patient.User.ProfilePictureUrl,
+                Gender = FormatGender(patient.User.Gender),
+                Age = CalculateAge(patient.User.BirthDate),
+                RegisteredAt = patient.CreatedAt.ToString("yyyy-MM-dd"),
+                IsActive = patient.User.IsActive,
+                MedicalHistory = patient.MedicalHistory,
+                MedicalFiles = patient.MedicalFiles
+                    .OrderByDescending(f => f.UploadedAtUtc)
+                    .Select(f => new AdminMedicalFileDto
+                    {
+                        Id = f.Id,
+                        FileName = f.FileName,
+                        FileUrl = f.FileUrl,
+                        FileType = f.FileType,
+                        CategoryLabel = MedicalFileCategoryLabels
+                            .FirstOrDefault(c => c.Category == f.Category).Label ?? f.Category.ToString(),
+                        UploadedAt = f.UploadedAtUtc.ToString("yyyy-MM-dd")
+                    })
+                    .ToList()
+            };
+        }
+
+        // ── جديد: بروفايل طبيب كامل لـ "عرض الملف الشخصي" ─────────────
+        public async Task<AdminDoctorDetailDto?> GetDoctorDetailAsync(int doctorId)
+        {
+            var doctor = await _context.Doctors
+                .Include(d => d.User)
+                .Include(d => d.Department)
+                .Include(d => d.Reviews)
+                .Include(d => d.Availabilities)
+                    .ThenInclude(a => a.Appointment)
+                .FirstOrDefaultAsync(d => d.Id == doctorId);
+
+            if (doctor == null) return null;
+
+            return new AdminDoctorDetailDto
+            {
+                Id = doctor.Id,
+                FullName = doctor.User.FirstName + " " + doctor.User.LastName,
+                Email = doctor.User.Email!,
+                PhoneNumber = doctor.User.PhoneNumber,
+                ProfilePictureUrl = doctor.ImageProfile,
+                Gender = FormatGender(doctor.User.Gender),
+                Age = CalculateAge(doctor.User.BirthDate),
+                RegisteredAt = doctor.CreatedAt.ToString("yyyy-MM-dd"),
+                IsActive = doctor.User.IsActive,
+                Department = doctor.Department.Name,
+                Address = doctor.Address,
+                LicenseNumber = doctor.LicenseNumber,
+                ConsultationFee = doctor.ConsultationFee,
+                GraduationDate = doctor.GraduationDate.ToString("yyyy-MM-dd"),
+                IsVerified = doctor.IsVerified,
+                AverageRating = doctor.Reviews.Any() ? Math.Round(doctor.Reviews.Average(r => r.Rating), 1) : 0,
+                TotalReviews = doctor.Reviews.Count,
+                TotalAppointments = doctor.Availabilities.Count(a => a.Appointment != null)
+            };
+        }
+
+        // ── Helper: تنسيق الجنس كنص عربي ──────────────────────────────
+        private static string FormatGender(Gender? gender)
+        {
+            return gender switch
+            {
+                Gender.Male => "ذكر",
+                Gender.Female => "أنثى",
+                _ => "غير محدد"
+            };
+        }
+
+        // ── Helper: حساب العمر من تاريخ الميلاد ───────────────────────
+        private static int CalculateAge(DateTime birthDate)
+        {
+            var today = DateTime.UtcNow.Date;
+            var age = today.Year - birthDate.Year;
+            if (birthDate.Date > today.AddYears(-age)) age--;
+            return age;
+        }
+
+        // ── Helper: تسميات فئات الملفات الطبية بالعربي ────────────────
+        private static readonly (MedicalFileCategory Category, string Label)[] MedicalFileCategoryLabels =
+        {
+            (MedicalFileCategory.LabResult, "تحاليل طبية"),
+            (MedicalFileCategory.Scan, "أشعة"),
+            (MedicalFileCategory.Prescription, "وصفات طبية"),
+            (MedicalFileCategory.MedicalReport, "تقارير طبية"),
+        };
+
         // ── Helper: بناء كارت الـ KPI ونسبة التغيير ──────────────────
         private static KpiCardDto BuildCard(decimal current, decimal previous, string comparisonLabel)
         {
