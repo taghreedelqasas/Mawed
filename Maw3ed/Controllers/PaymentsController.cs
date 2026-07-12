@@ -14,10 +14,12 @@ namespace Maw3ed.Api.Controllers
     public class PaymentsController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
+        private readonly ILogger<PaymentsController> _logger;
 
-        public PaymentsController(IPaymentService paymentService)
+        public PaymentsController(IPaymentService paymentService, ILogger<PaymentsController> logger)
         {
             _paymentService = paymentService;
+            _logger = logger;
         }
 
         [Authorize(Roles = "Patient")]
@@ -32,19 +34,24 @@ namespace Maw3ed.Api.Controllers
         [AllowAnonymous]
         [HttpPost("paymob-webhook")]
         public async Task<IActionResult> PaymobWebhook(
-            [FromHeader(Name = "x-hmac")] string? hmac,
+            [FromQuery] string? hmac,
             [FromBody] PaymobWebhookWrapperDto wrapper)
         {
+            _logger.LogInformation("Paymob webhook received. HMAC present: {HasHmac}", !string.IsNullOrEmpty(hmac));
+
             if (string.IsNullOrEmpty(hmac))
+            {
+                _logger.LogWarning("Paymob webhook received with no HMAC");
                 return Ok();
+            }
 
             try
             {
                 await _paymentService.HandlePaymobWebhookAsync(wrapper.Obj, hmac);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Always return 200 to Paymob to prevent retry storms
+                _logger.LogError(ex, "Error processing Paymob webhook");
             }
 
             return Ok();
