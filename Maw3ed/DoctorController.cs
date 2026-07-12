@@ -1,4 +1,5 @@
 ﻿using Maw3ed.DAL.DoctorDev.DoctorDtos;
+using System.Security.Claims;
 using Maw3ed.DAL.DoctorDev.DoctorManager;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -8,6 +9,7 @@ namespace Maw3ed.APIs.DoctorController
 {
     [Route("api/[controller]")]
     [ApiController]
+
     public class DoctorController : ControllerBase
     {
         private readonly IDoctorManager _doctorManager;
