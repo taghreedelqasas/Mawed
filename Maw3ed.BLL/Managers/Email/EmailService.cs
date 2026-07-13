@@ -122,4 +122,37 @@ public class EmailService : IEmailService
             await client.DisconnectAsync(quit: true);
         }
     }
+    public async Task SendDoctorRejectionAsync(string toEmail, string toName, string? reason = null)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
+        message.To.Add(new MailboxAddress(toName, toEmail));
+        message.Subject = "Update on your Maw3ed account request";
+
+        var reasonHtml = string.IsNullOrWhiteSpace(reason)
+            ? ""
+            : $"<p><strong>Reason:</strong> {reason}</p>";
+
+        message.Body = new TextPart("html")
+        {
+            Text = $@"
+                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto;'>
+                    <h2>Application Update</h2>
+                    <p>Hi Dr. {toName},</p>
+                    <p>After reviewing your application, we're unable to approve your account on <strong>Maw3ed</strong> at this time.</p>
+                    {reasonHtml}
+                    <p style='margin-top:16px; color:#6B7280; font-size:13px;'>
+                        If you believe this was a mistake or would like more information, please contact our support team.
+                    </p>
+                </div>"
+        };
+        using (var client = new SmtpClient())
+        {
+            await client.ConnectAsync(_settings.SmtpHost, _settings.SmtpPort, SecureSocketOptions.StartTls);
+            await client.AuthenticateAsync(_settings.SmtpUser, _settings.ApiKey);
+
+            await client.SendAsync(message);
+            await client.DisconnectAsync(quit: true);
+        }
+    }
 }

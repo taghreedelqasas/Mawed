@@ -2,7 +2,7 @@
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
+using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.BLL;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -47,7 +47,18 @@ namespace Maw3ed.APIs
 
             return Ok(new { message });
         }
+        // PUT: api/admin/reject-doctor/{userId}
+        // Admin rejects a pending doctor request. body: { "reason": "..." } (optional)
+        [HttpPut("reject-doctor/{userId}")]
+        public async Task<IActionResult> RejectDoctor(string userId, [FromBody] RejectDoctorDto? dto)
+        {
+            var (success, message) = await _doctorManager.RejectDoctorAsync(userId, dto?.Reason);
 
+            if (!success)
+                return BadRequest(new { message });
+
+            return Ok(new { message });
+        }
         // GET: api/admin/dashboard/overview
         // كروت الـ KPI اللي فوق في شاشة "نظرة عامة" (مواعيد اليوم - إجمالي المرضى - الإيرادات ...إلخ)
         [HttpGet("dashboard/overview")]
