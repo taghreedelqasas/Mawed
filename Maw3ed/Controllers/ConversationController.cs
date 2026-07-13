@@ -8,6 +8,10 @@ using System.Security.Claims;
 
 namespace Maw3ed.APIs.Controllers
 {
+    /// <summary>
+    /// Provides REST API endpoints for doctor-patient conversations and messaging.
+    /// Supports text messages, file attachments, read receipts, and conversation management.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
@@ -28,6 +32,11 @@ namespace Maw3ed.APIs.Controllers
         }
 
         // ============ Helpers ============
+
+        /// <summary>
+        /// Resolves the current user's Patient record ID from JWT claims.
+        /// Returns null if the user is not a patient.
+        /// </summary>
         private async Task<int?> GetPatientIdAsync()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -39,6 +48,10 @@ namespace Maw3ed.APIs.Controllers
             return patients.FirstOrDefault()?.Id;
         }
 
+        /// <summary>
+        /// Resolves the current user's Doctor record ID from JWT claims.
+        /// Returns null if the user is not a doctor.
+        /// </summary>
         private async Task<int?> GetDoctorIdAsync()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -50,9 +63,21 @@ namespace Maw3ed.APIs.Controllers
             return doctors.FirstOrDefault()?.Id;
         }
 
-        // المريض يبدأ محادثة مع دكتور
+        /// <summary>
+        /// Patient starts or resumes a conversation with a doctor.
+        /// If a conversation already exists between the patient and doctor, it is returned.
+        /// Otherwise, a new conversation is created.
+        /// </summary>
+        /// <param name="doctorId">The ID of the doctor to converse with.</param>
+        /// <returns>The created or existing <see cref="ConversationDto"/>.</returns>
+        /// <response code="200">Conversation created or retrieved successfully.</response>
+        /// <response code="401">User is not authenticated or has no patient profile.</response>
+        /// <response code="400">An error occurred while creating the conversation.</response>
         [HttpPost("start/{doctorId}")]
         [Authorize(Roles = "Patient")]
+        [ProducesResponseType(typeof(ConversationDto), 200)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(typeof(string), 400)]
         public async Task<IActionResult> StartConversation(int doctorId)
         {
             var patientId = await GetPatientIdAsync();
@@ -70,9 +95,21 @@ namespace Maw3ed.APIs.Controllers
             }
         }
 
-        // الدكتور يبدأ محادثة مع مريض
+        /// <summary>
+        /// Doctor starts or resumes a conversation with a patient.
+        /// If a conversation already exists between the doctor and patient, it is returned.
+        /// Otherwise, a new conversation is created.
+        /// </summary>
+        /// <param name="patientId">The ID of the patient to converse with.</param>
+        /// <returns>The created or existing <see cref="ConversationDto"/>.</returns>
+        /// <response code="200">Conversation created or retrieved successfully.</response>
+        /// <response code="401">User is not authenticated or has no doctor profile.</response>
+        /// <response code="400">An error occurred while creating the conversation.</response>
         [HttpPost("doctor-start/{patientId}")]
         [Authorize(Roles = "Doctor")]
+        [ProducesResponseType(typeof(ConversationDto), 200)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(typeof(string), 400)]
         public async Task<IActionResult> DoctorStartConversation(int patientId)
         {
             var doctorId = await GetDoctorIdAsync();
@@ -90,9 +127,18 @@ namespace Maw3ed.APIs.Controllers
             }
         }
 
-        // GET: api/Conversation/my-conversations
+        /// <summary>
+        /// Gets all conversations for the authenticated patient.
+        /// Each conversation includes doctor name, image, last message preview, and unread count.
+        /// Results are ordered by most recent message first.
+        /// </summary>
+        /// <returns>A list of <see cref="ConversationDto"/> for the patient.</returns>
+        /// <response code="200">Conversations retrieved successfully.</response>
+        /// <response code="401">User is not authenticated or has no patient profile.</response>
         [HttpGet("my-conversations")]
         [Authorize(Roles = "Patient")]
+        [ProducesResponseType(typeof(IEnumerable<ConversationDto>), 200)]
+        [ProducesResponseType(401)]
         public async Task<IActionResult> GetMyConversations()
         {
             var patientId = await GetPatientIdAsync();
@@ -103,9 +149,18 @@ namespace Maw3ed.APIs.Controllers
             return Ok(conversations);
         }
 
-        // GET: api/Conversation/doctor-conversations
+        /// <summary>
+        /// Gets all conversations for the authenticated doctor.
+        /// Each conversation includes patient name, last message preview, and unread count.
+        /// Results are ordered by most recent message first.
+        /// </summary>
+        /// <returns>A list of <see cref="ConversationDto"/> for the doctor.</returns>
+        /// <response code="200">Conversations retrieved successfully.</response>
+        /// <response code="401">User is not authenticated or has no doctor profile.</response>
         [HttpGet("doctor-conversations")]
         [Authorize(Roles = "Doctor")]
+        [ProducesResponseType(typeof(IEnumerable<ConversationDto>), 200)]
+        [ProducesResponseType(401)]
         public async Task<IActionResult> GetDoctorConversations()
         {
             var doctorId = await GetDoctorIdAsync();
@@ -116,8 +171,21 @@ namespace Maw3ed.APIs.Controllers
             return Ok(conversations);
         }
 
-        // GET: api/Conversation/{conversationId}/messages
+        /// <summary>
+        /// Gets all messages in a conversation. The caller must be the patient or doctor
+        /// in the conversation. Messages are ordered chronologically (oldest first).
+        /// </summary>
+        /// <param name="conversationId">The ID of the conversation.</param>
+        /// <returns>A list of <see cref="MessageDto"/> in the conversation.</returns>
+        /// <response code="200">Messages retrieved successfully.</response>
+        /// <response code="401">User is not authenticated.</response>
+        /// <response code="403">User is not a participant in this conversation.</response>
+        /// <response code="400">Conversation not found or an error occurred.</response>
         [HttpGet("{conversationId}/messages")]
+        [ProducesResponseType(typeof(IEnumerable<MessageDto>), 200)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(403)]
+        [ProducesResponseType(typeof(string), 400)]
         public async Task<IActionResult> GetMessages(int conversationId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -139,8 +207,23 @@ namespace Maw3ed.APIs.Controllers
             }
         }
 
-        // POST: api/Conversation/{conversationId}/messages
+        /// <summary>
+        /// Sends a text message in a conversation. The caller must be the patient or doctor
+        /// in the conversation. If using SignalR, the message is also broadcast in real-time
+        /// to all participants via the ChatHub.
+        /// </summary>
+        /// <param name="conversationId">The ID of the conversation.</param>
+        /// <param name="dto">The message payload containing the text content.</param>
+        /// <returns>The created <see cref="MessageDto"/>.</returns>
+        /// <response code="200">Message sent successfully.</response>
+        /// <response code="401">User is not authenticated.</response>
+        /// <response code="403">User is not a participant in this conversation.</response>
+        /// <response code="400">Conversation not found or an error occurred.</response>
         [HttpPost("{conversationId}/messages")]
+        [ProducesResponseType(typeof(MessageDto), 200)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(403)]
+        [ProducesResponseType(typeof(string), 400)]
         public async Task<IActionResult> SendMessage(
             int conversationId, [FromBody] SendMessageDto dto)
         {
@@ -163,9 +246,25 @@ namespace Maw3ed.APIs.Controllers
             }
         }
 
-        // POST: api/Conversation/{conversationId}/attachments
-        // بيستخدم لإرسال ملف (نتائج تحاليل / تقرير) زي شاشة الشات
+        /// <summary>
+        /// Uploads a file attachment in a conversation (e.g. medical reports, lab results).
+        /// The file is saved to wwwroot/uploads/chat-attachments/ with a unique GUID filename.
+        /// Supported file types: .pdf, .jpg, .jpeg, .png.
+        /// Maximum file size is limited by the server configuration.
+        /// </summary>
+        /// <param name="conversationId">The ID of the conversation.</param>
+        /// <param name="file">The file to upload (multipart form data).</param>
+        /// <param name="caption">Optional caption text for the attachment.</param>
+        /// <returns>The created <see cref="MessageDto"/> with attachment metadata.</returns>
+        /// <response code="200">Attachment uploaded and message created successfully.</response>
+        /// <response code="401">User is not authenticated.</response>
+        /// <response code="403">User is not a participant in this conversation.</response>
+        /// <response code="400">No file provided, unsupported file type, or an error occurred.</response>
         [HttpPost("{conversationId}/attachments")]
+        [ProducesResponseType(typeof(MessageDto), 200)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(403)]
+        [ProducesResponseType(typeof(string), 400)]
         public async Task<IActionResult> SendAttachment(
             int conversationId, [FromForm] IFormFile file, [FromForm] string? caption)
         {
@@ -175,7 +274,6 @@ namespace Maw3ed.APIs.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest("لازم تختار ملف");
 
-            // تحقق بسيط من نوع الملف
             var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png" };
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!allowedExtensions.Contains(ext))
@@ -212,8 +310,21 @@ namespace Maw3ed.APIs.Controllers
             }
         }
 
-        // PUT: api/Conversation/{conversationId}/read
+        /// <summary>
+        /// Marks all unread messages from the other party as read for the current user
+        /// in the specified conversation.
+        /// </summary>
+        /// <param name="conversationId">The ID of the conversation.</param>
+        /// <returns>A success confirmation message.</returns>
+        /// <response code="200">Messages marked as read successfully.</response>
+        /// <response code="401">User is not authenticated.</response>
+        /// <response code="403">User is not a participant in this conversation.</response>
+        /// <response code="400">Conversation not found or an error occurred.</response>
         [HttpPut("{conversationId}/read")]
+        [ProducesResponseType(typeof(string), 200)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(403)]
+        [ProducesResponseType(typeof(string), 400)]
         public async Task<IActionResult> MarkAsRead(int conversationId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
