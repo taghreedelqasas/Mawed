@@ -197,8 +197,15 @@ namespace Maw3ed.BLL.Services.Classes
 
             if (wallet is null)
             {
-                _logger.LogWarning("Doctor wallet not found for DoctorId={DoctorId} during payment credit", doctorId);
-                return;
+                wallet = new DoctorWallet
+                {
+                    DoctorId = doctorId,
+                    Balance = 0,
+                    PendingBalance = 0,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _unitOfWork.GetRepository<DoctorWallet>().AddAsync(wallet);
+                _logger.LogInformation("Created wallet for DoctorId={DoctorId}", doctorId);
             }
 
             wallet.Balance += netAmount;
