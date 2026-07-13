@@ -17,5 +17,7 @@ namespace Maw3ed.BLL.DTOs.Appointment
         public DateTime SlotEnd { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        public string PaymentStatus { get; set; } = string.Empty;
     }
 }

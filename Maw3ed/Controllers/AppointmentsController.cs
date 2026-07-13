@@ -103,5 +103,26 @@ namespace Maw3ed.Controllers
             var result = await _appointmentService.CompleteAppointmentAsync(CurrentUserId, id);
             return result.ToActionResult(this);
         }
+
+        // PATCH api/appointments/{id}/no-show  → 200 | 400 | 404
+        [HttpPatch("{id}/no-show")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<IActionResult> MarkNoShow(int id)
+        {
+            var result = await _appointmentService.MarkNoShowAsync(CurrentUserId, id);
+            return result.ToActionResult(this);
+        }
+
+        // GET api/appointments/{id}  → 200 | 404
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetAppointmentById(int id)
+        {
+            var role = User.IsInRole("Doctor") ? "Doctor"
+                     : User.IsInRole("Patient") ? "Patient"
+                     : string.Empty;
+
+            var result = await _appointmentService.GetAppointmentByIdAsync(CurrentUserId, role, id);
+            return result.ToActionResult(this);
+        }
     }
 }

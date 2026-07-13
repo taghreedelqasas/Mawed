@@ -9,6 +9,7 @@ namespace Maw3ed.DAL
         Pending,
         Confirmed,
         Completed,
-        Cancelled
+        Cancelled,
+        NoShow
     }
 }

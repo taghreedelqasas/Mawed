@@ -89,9 +89,38 @@ namespace Maw3ed.BLL.Services.Classes
                     Title = n.Title,
                     Body = n.Body,
                     Status = n.Status,
+                    IsRead = n.IsRead,
                     CreatedAtUtc = n.CreatedAtUtc,
                     SentAtUtc = n.SentAtUtc
                 });
+        }
+
+        public async Task MarkAsReadAsync(int notificationId, string userId)
+        {
+            var notifications = await _unitOfWork.GetRepository<Notification>()
+                .FindAsync(n => n.Id == notificationId && n.UserId == userId);
+
+            var notification = notifications.FirstOrDefault();
+            if (notification is null)
+                return;
+
+            notification.IsRead = true;
+            _unitOfWork.GetRepository<Notification>().Update(notification);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task MarkAllAsReadAsync(string userId)
+        {
+            var notifications = await _unitOfWork.GetRepository<Notification>()
+                .FindAsync(n => n.UserId == userId && !n.IsRead);
+
+            foreach (var notification in notifications)
+            {
+                notification.IsRead = true;
+                _unitOfWork.GetRepository<Notification>().Update(notification);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
         }
 
         // الميثود اللي بتبعت الإيميل فعلاً

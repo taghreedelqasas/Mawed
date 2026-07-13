@@ -21,6 +21,8 @@ namespace Maw3ed.DAL.Data.Models
 
         public int? RelatedEntityId { get; set; }
 
+        public bool IsRead { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
         public DateTime? SentAtUtc { get; set; }
     }

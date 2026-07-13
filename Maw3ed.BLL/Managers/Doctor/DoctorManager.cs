@@ -165,6 +165,20 @@ namespace Maw3ed.BLL
 
             doctor.IsVerified = true;
             _unitOfWork.GetRepository<Doctor>().Update(doctor);
+
+            var existingWallet = (await _unitOfWork.GetRepository<DoctorWallet>()
+                .GetAllAsync(w => w.DoctorId == doctor.Id)).FirstOrDefault();
+
+            if (existingWallet is null)
+            {
+                await _unitOfWork.GetRepository<DoctorWallet>().AddAsync(new DoctorWallet
+                {
+                    DoctorId = doctor.Id,
+                    Balance = 0,
+                    PendingBalance = 0
+                });
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             await _emailService.SendDoctorApprovalAsync(

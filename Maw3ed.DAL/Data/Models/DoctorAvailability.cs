@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 
 namespace Maw3ed.DAL
@@ -19,5 +20,8 @@ namespace Maw3ed.DAL
         public Doctor Doctor { get; set; }
 
         public Appointment? Appointment { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

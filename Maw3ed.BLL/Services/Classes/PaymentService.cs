@@ -42,7 +42,7 @@ namespace Maw3ed.BLL.Services.Classes
             if (appointment is null)
                 return new(false, "Appointment not found.", null, ServiceError.NotFound);
 
-            if (appointment.PaymentStatus == PaymentStatus.Paid)
+            if (appointment.Payment?.Status == PaymentStatus.Paid)
                 return new(false, "This appointment is already paid.", null, ServiceError.Conflict);
 
             var payment = appointment.Payment ?? new Payment
@@ -58,6 +58,9 @@ namespace Maw3ed.BLL.Services.Classes
                 "Wallet" => PaymentMethod.Wallet,
                 _ => PaymentMethod.CreditCard
             };
+
+            if (payment.Method == PaymentMethod.Wallet)
+                return new(false, "Wallet payment is not yet implemented. Please use credit card.", null, ServiceError.BadRequest);
 
             if (payment.Id == 0)
                 await _unitOfWork.GetRepository<Payment>().AddAsync(payment);
@@ -161,13 +164,13 @@ namespace Maw3ed.BLL.Services.Classes
                 {
                     payment.Status = PaymentStatus.Paid;
                     payment.PaymobTransactionId = payload.Id.ToString();
-                    payment.Appointment.PaymentStatus = PaymentStatus.Paid;
 
                     _unitOfWork.GetRepository<Payment>().Update(payment);
                     _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);
-                    await _unitOfWork.SaveChangesAsync();
 
                     await CreditDoctorWalletAsync(payment);
+
+                    await _unitOfWork.SaveChangesAsync();
                 }
                 else
                 {
@@ -251,7 +254,6 @@ namespace Maw3ed.BLL.Services.Classes
             {
                 payment.Status = PaymentStatus.Refunded;
                 payment.RefundedAt = DateTime.UtcNow;
-                payment.Appointment.PaymentStatus = PaymentStatus.Refunded;
 
                 _unitOfWork.GetRepository<Payment>().Update(payment);
                 _unitOfWork.GetRepository<Appointment>().Update(payment.Appointment);

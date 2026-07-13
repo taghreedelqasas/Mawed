@@ -1,7 +1,10 @@
-﻿using Maw3ed.DAL.DoctorDev.DoctorDtos;
+﻿using Maw3ed.DAL;
+using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Maw3ed.APIs.DoctorControllers
 {
@@ -10,10 +13,28 @@ namespace Maw3ed.APIs.DoctorControllers
     public class DoctorAvailabilityController : Controller
     {
         private readonly IDoctorAvailabilityManager _doctorAvailabilityManager;
+        private readonly AppDbContext _context;
 
-        public DoctorAvailabilityController(IDoctorAvailabilityManager doctorAvailabilityManager)
+        public DoctorAvailabilityController(
+            IDoctorAvailabilityManager doctorAvailabilityManager,
+            AppDbContext context)
         {
             _doctorAvailabilityManager = doctorAvailabilityManager;
+            _context = context;
+        }
+
+        private string CurrentUserId =>
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+
+        private async Task<int> GetCurrentDoctorIdAsync()
+        {
+            var doctor = await _context.Doctors
+                .FirstOrDefaultAsync(d => d.UserId == CurrentUserId);
+
+            if (doctor is null)
+                throw new Exception("Doctor profile not found.");
+
+            return doctor.Id;
         }
 
         // بس الدكتور يضيف مواعيده
@@ -23,6 +44,7 @@ namespace Maw3ed.APIs.DoctorControllers
         {
             try
             {
+                dto.DoctorId = await GetCurrentDoctorIdAsync();
                 await _doctorAvailabilityManager.AddAsync(dto);
                 return Ok(new { Message = "Doctor availability added successfully." });
             }
@@ -38,6 +60,7 @@ namespace Maw3ed.APIs.DoctorControllers
         {
             try
             {
+                dto.DoctorId = await GetCurrentDoctorIdAsync();
                 await _doctorAvailabilityManager.BulkAddAsync(dto);
                 return Ok(new { Message = "Doctor availability slots added successfully." });
             }
