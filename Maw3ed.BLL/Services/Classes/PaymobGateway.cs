@@ -55,7 +55,7 @@ namespace Maw3ed.BLL.Services.Classes
             return _cachedAuthToken;
         }
 
-        public async Task<string> CreatePaymentLinkAsync(
+        public async Task<(string IframeUrl, long OrderId)> CreatePaymentLinkAsync(
             int amountCents,
             string merchantOrderId,
             string billingEmail,
@@ -134,7 +134,7 @@ namespace Maw3ed.BLL.Services.Classes
                 throw new InvalidOperationException("Paymob payment key returned empty token");
             }
 
-            return $"https://accept.paymob.com/api/acceptance/iframes/{iframeId}?payment_token={paymentKeyResp.Token}";
+            return ($"https://accept.paymob.com/api/acceptance/iframes/{iframeId}?payment_token={paymentKeyResp.Token}", order.Id);
         }
 
         public bool VerifyHmac(PaymobWebhookDto payload, string receivedHmac)
@@ -142,24 +142,24 @@ namespace Maw3ed.BLL.Services.Classes
             var hmacSecret = _config["Paymob:HmacSecret"]!;
 
             var concatenated =
-                $"{payload.AmountCents}{payload.Created}{payload.Currency}{payload.ErrorOccured}" +
-                $"{payload.HasParentTransaction}{payload.Id}{payload.IntegrationId}{payload.Is3dSecure}" +
-                $"{payload.IsAuth}{payload.IsCapture}{payload.IsRefunded}{payload.IsStandalonePayment}" +
-                $"{payload.IsVoided}{payload.OrderId}{payload.Owner}{payload.Pending}" +
-                $"{payload.SourceDataPan}{payload.SourceDataSubType}{payload.SourceDataType}{payload.Success}";
-
-            var concatenatedLower = concatenated.ToLowerInvariant();
+                $"{payload.AmountCents}{payload.Created}{payload.Currency}{BoolLower(payload.ErrorOccured)}" +
+                $"{BoolLower(payload.HasParentTransaction)}{payload.Id}{payload.IntegrationId}{BoolLower(payload.Is3dSecure)}" +
+                $"{BoolLower(payload.IsAuth)}{BoolLower(payload.IsCapture)}{BoolLower(payload.IsRefunded)}{BoolLower(payload.IsStandalonePayment)}" +
+                $"{BoolLower(payload.IsVoided)}{payload.OrderId}{payload.Owner}{BoolLower(payload.Pending)}" +
+                $"{payload.SourceDataPan}{payload.SourceDataSubType}{payload.SourceDataType}{BoolLower(payload.Success)}";
 
             using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(hmacSecret));
-            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(concatenatedLower));
-            var computedBytes = hash;
-            var receivedBytes = Convert.FromHexString(receivedHmac);
-
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(concatenated));
             var computedHex = Convert.ToHexString(hash).ToLowerInvariant();
+
             _logger.LogDebug("HMAC computed={Computed}, received={Received}, match={Match}", computedHex, receivedHmac.ToLowerInvariant(), computedHex == receivedHmac.ToLowerInvariant());
 
-            return CryptographicOperations.FixedTimeEquals(computedBytes, receivedBytes);
+            return CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(computedHex),
+                Encoding.UTF8.GetBytes(receivedHmac.ToLowerInvariant()));
         }
+
+        private static string BoolLower(bool b) => b ? "true" : "false";
 
         public async Task<bool> RefundAsync(string transactionId, int amountCents)
         {

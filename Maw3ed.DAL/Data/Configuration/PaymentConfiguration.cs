@@ -28,6 +28,8 @@ namespace Maw3ed.DAL
             builder.Property(x => x.PaymobTransactionId)
                 .HasMaxLength(64);
 
+            builder.Property(x => x.PaymobOrderId);
+
             builder.HasOne(x => x.Appointment)
                 .WithOne(x => x.Payment)
                 .HasForeignKey<Payment>(x => x.AppointmentId);

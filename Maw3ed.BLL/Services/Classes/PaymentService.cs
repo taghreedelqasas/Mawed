@@ -66,7 +66,7 @@ namespace Maw3ed.BLL.Services.Classes
 
             await _unitOfWork.SaveChangesAsync();
 
-            var iframeUrl = await _paymob.CreatePaymentLinkAsync(
+            var (iframeUrl, paymobOrderId) = await _paymob.CreatePaymentLinkAsync(
                 amountCents: (int)(payment.Amount * 100),
                 merchantOrderId: $"APPT-{appointment.Id}-{payment.Id}",
                 billingEmail: appointment.Patient.User.Email!,
@@ -75,10 +75,16 @@ namespace Maw3ed.BLL.Services.Classes
                 billingPhone: appointment.Patient.User.PhoneNumber ?? "01000000000"
             );
 
+            payment.PaymobOrderId = paymobOrderId;
+            if (payment.Id != 0)
+                _unitOfWork.GetRepository<Payment>().Update(payment);
+            await _unitOfWork.SaveChangesAsync();
+
             return new(true, "Payment initiated.", new PaymentInitiateResponseDto
             {
                 PaymentId = payment.Id,
-                IframeUrl = iframeUrl
+                IframeUrl = iframeUrl,
+                PaymobOrderId = paymobOrderId
             });
         }
 
@@ -90,24 +96,58 @@ namespace Maw3ed.BLL.Services.Classes
                 return new(false, "Invalid HMAC signature.", ServiceError.BadRequest);
             }
 
-            var parts = payload.MerchantOrderId.Split('-');
-            if (parts.Length != 3 || !int.TryParse(parts[2], out var paymentId))
-            {
-                _logger.LogWarning("Invalid order reference: {OrderId}", payload.MerchantOrderId);
-                return new(false, "Invalid order reference.", ServiceError.BadRequest);
-            }
-
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                var payment = await _context.Payments
-                    .Include(p => p.Appointment)
-                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+                Payment? payment = null;
+                int? fallbackAppointmentId = null;
+
+                // Try by PaymobOrderId (obj.order.id) — most reliable
+                if (payload.OrderId > 0)
+                {
+                    payment = await _context.Payments
+                        .Include(p => p.Appointment)
+                        .FirstOrDefaultAsync(p => p.PaymobOrderId == payload.OrderId);
+                }
+
+                // Try merchant_order_id (APPT-{appointmentId}-{paymentId})
+                if (payment == null && !string.IsNullOrEmpty(payload.MerchantOrderId))
+                {
+                    var parts = payload.MerchantOrderId.Split('-');
+                    if (parts.Length == 3 && int.TryParse(parts[1], out var apptId) && int.TryParse(parts[2], out var paymentId))
+                    {
+                        fallbackAppointmentId = apptId;
+                        payment = await _context.Payments
+                            .Include(p => p.Appointment)
+                            .FirstOrDefaultAsync(p => p.Id == paymentId);
+                    }
+                }
+
+                // Fallback: find by PaymobTransactionId
+                if (payment == null)
+                {
+                    payment = await _context.Payments
+                        .Include(p => p.Appointment)
+                        .FirstOrDefaultAsync(p => p.PaymobTransactionId == payload.Id.ToString());
+                }
+
+                // Fallback: find by amount_cents + AppointmentId for existing payments without PaymobOrderId
+                if (payment == null && fallbackAppointmentId.HasValue)
+                {
+                    var amount = payload.AmountCents / 100m;
+                    payment = await _context.Payments
+                        .Include(p => p.Appointment)
+                        .Where(p => p.Amount == amount && p.AppointmentId == fallbackAppointmentId.Value
+                                    && p.Status == PaymentStatus.Pending && p.PaymobTransactionId == null)
+                        .OrderByDescending(p => p.CreatedAt)
+                        .FirstOrDefaultAsync();
+                }
 
                 if (payment is null)
                 {
                     await transaction.RollbackAsync();
+                    _logger.LogWarning("Payment not found for TransactionId={TransactionId}, MerchantOrderId={OrderId}", payload.Id, payload.MerchantOrderId);
                     return new(false, "Payment not found.", ServiceError.NotFound);
                 }
 
@@ -142,7 +182,7 @@ namespace Maw3ed.BLL.Services.Classes
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error processing webhook for payment {PaymentId}", paymentId);
+                _logger.LogError(ex, "Error processing webhook for payment TransactionId={TransactionId}", payload.Id);
                 throw;
             }
         }

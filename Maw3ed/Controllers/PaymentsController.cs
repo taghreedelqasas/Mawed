@@ -36,7 +36,7 @@ namespace Maw3ed.Api.Controllers
         public async Task<IActionResult> PaymobWebhook(
             [FromQuery] string? hmac,
             [FromBody] PaymobWebhookWrapperDto wrapper)
-        {
+      {
             _logger.LogInformation("Paymob webhook received. HMAC present: {HasHmac}", !string.IsNullOrEmpty(hmac));
 
             if (string.IsNullOrEmpty(hmac))

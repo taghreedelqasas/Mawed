@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace Maw3ed.BLL.Services.Interfaces
 {
-   public  interface IPaymobGateway
+    public  interface IPaymobGateway
     {
-        Task<string> CreatePaymentLinkAsync(
+        Task<(string IframeUrl, long OrderId)> CreatePaymentLinkAsync(
             int amountCents,
             string merchantOrderId,
             string billingEmail,

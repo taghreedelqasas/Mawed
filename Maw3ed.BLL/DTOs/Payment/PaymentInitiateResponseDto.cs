@@ -10,5 +10,6 @@ namespace Maw3ed.BLL.DTOs.Payment
     {
         public int PaymentId { get; set; }
         public string IframeUrl { get; set; } = string.Empty;
+        public long PaymobOrderId { get; set; }
     }
 }
