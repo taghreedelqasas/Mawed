@@ -36,6 +36,8 @@ namespace Maw3ed.BLL
                 IsVerified = d.IsVerified,
                 DepartmentName = d.Department?.Name ?? "",
                 UserName = d.User?.UserName ?? " ",
+                FirstName = d.User?.FirstName,
+                LastName = d.User?.LastName,
                 ImageProfile = d.ImageProfile
             });
         }
@@ -62,6 +64,8 @@ namespace Maw3ed.BLL
                 IsVerified = doctor.IsVerified,
                 DepartmentName = doctor.Department?.Name ?? "",
                 UserName = doctor.User?.UserName ?? "",
+                FirstName = doctor.User?.FirstName,
+                LastName = doctor.User?.LastName,
                 ImageProfile = doctor.ImageProfile
             };
         }
@@ -192,6 +196,8 @@ namespace Maw3ed.BLL
                 IsVerified = doctor.IsVerified,
                 DepartmentName = doctor.Department?.Name ?? "",
                 UserName = doctor.User?.UserName ?? "",
+                FirstName = doctor.User?.FirstName,
+                LastName = doctor.User?.LastName,
                 ImageProfile = doctor.ImageProfile
             };
         }
