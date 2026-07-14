@@ -13,12 +13,16 @@ namespace Maw3ed.BLL.Services.Interfaces
 
         Task<ServiceResult> DeleteReviewAsync(string patientUserId, int reviewId);
 
-        Task<IEnumerable<ReviewResponseDto>> GetMyReviewsAsync(string patientUserId);
+        Task<ServiceResult<PaginatedReviewsDto>> GetMyReviewsAsync(
+            string patientUserId, int page, int pageSize);
 
-        Task<DoctorReviewsSummaryDto?> GetDoctorReviewsAsync(int doctorId);
+        Task<ServiceResult<DoctorReviewsSummaryDto>> GetDoctorReviewsAsync(
+            int doctorId, int page, int pageSize);
 
-        Task<ReviewResponseDto?> GetReviewByIdAsync(int reviewId);
+        Task<ServiceResult<ReviewResponseDto>> GetReviewByIdAsync(int reviewId);
 
         Task<ServiceResult> AdminDeleteReviewAsync(int reviewId);
+
+        Task<ServiceResult<RatingDistributionDto>> GetRatingDistributionAsync(int doctorId);
     }
 }

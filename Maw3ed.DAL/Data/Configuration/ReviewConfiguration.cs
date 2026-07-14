@@ -16,6 +16,11 @@ namespace Maw3ed.DAL
             builder.Property(x => x.Rating)
                 .IsRequired();
 
+            builder.HasCheckConstraint("CK_Reviews_Rating", "[Rating] BETWEEN 1 AND 5");
+
+            builder.HasIndex(r => new { r.PatientId, r.DoctorId })
+                .IsUnique();
+
             builder.HasOne(x => x.Patient)
                 .WithMany(x => x.Reviews)
                 .HasForeignKey(x => x.PatientId)
@@ -24,7 +29,7 @@ namespace Maw3ed.DAL
             builder.HasOne(x => x.Doctor)
                 .WithMany(x => x.Reviews)
                 .HasForeignKey(x => x.DoctorId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

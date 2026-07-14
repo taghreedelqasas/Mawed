@@ -1,3 +1,4 @@
+using Maw3ed.BLL.Common;
 using Maw3ed.BLL.DTOs.Review;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.Extensions;
@@ -21,13 +22,20 @@ namespace Maw3ed.Controllers
         private string CurrentUserId =>
             User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
 
-        // POST api/reviews  → 201 | 403 | 404 | 409
+        /// <summary>
+        /// Creates a new review for a doctor. The patient must have a completed appointment with the doctor.
+        /// A patient can only review a doctor once.
+        /// </summary>
         [HttpPost]
         [Authorize(Roles = "Patient")]
+        [ProducesResponseType(typeof(ReviewResponseDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> CreateReview([FromBody] CreateReviewDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
             var result = await _reviewService.CreateReviewAsync(CurrentUserId, dto);
 
             return result.ToCreatedResult(
@@ -37,58 +45,109 @@ namespace Maw3ed.Controllers
                 new { result.Message, result.Data });
         }
 
-        // PUT api/reviews/{id}  → 200 | 403 | 404
+        /// <summary>
+        /// Updates an existing review. Only the original author can edit their review.
+        /// </summary>
         [HttpPut("{id}")]
         [Authorize(Roles = "Patient")]
+        [ProducesResponseType(typeof(ReviewResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateReview(int id, [FromBody] UpdateReviewDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
             var result = await _reviewService.UpdateReviewAsync(CurrentUserId, id, dto);
             return result.ToActionResult(this);
         }
 
-        // DELETE api/reviews/{id}  → 200 | 403 | 404
+        /// <summary>
+        /// Deletes a review. Only the original author can delete their review.
+        /// </summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Patient")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteReview(int id)
         {
             var result = await _reviewService.DeleteReviewAsync(CurrentUserId, id);
             return result.ToActionResult(this);
         }
 
-        // GET api/reviews/my  → 200
+        /// <summary>
+        /// Gets all reviews written by the authenticated patient, with pagination.
+        /// </summary>
+        /// <param name="page">Page number (default: 1)</param>
+        /// <param name="pageSize">Items per page (default: 10)</param>
         [HttpGet("my")]
         [Authorize(Roles = "Patient")]
-        public async Task<IActionResult> GetMyReviews()
+        [ProducesResponseType(typeof(PaginatedReviewsDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetMyReviews(
+            [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
-            var result = await _reviewService.GetMyReviewsAsync(CurrentUserId);
-            return Ok(result);
+            var result = await _reviewService.GetMyReviewsAsync(CurrentUserId, page, pageSize);
+            return result.ToActionResult(this);
         }
 
-        // GET api/reviews/doctors/{doctorId}  → 200 | 404
+        /// <summary>
+        /// Gets all reviews for a specific doctor with pagination, average rating, and total count.
+        /// </summary>
+        /// <param name="doctorId">The doctor's ID</param>
+        /// <param name="page">Page number (default: 1)</param>
+        /// <param name="pageSize">Items per page (default: 10)</param>
         [HttpGet("doctors/{doctorId}")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetDoctorReviews(int doctorId)
+        [ProducesResponseType(typeof(DoctorReviewsSummaryDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetDoctorReviews(
+            int doctorId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
-            var result = await _reviewService.GetDoctorReviewsAsync(doctorId);
-            if (result is null) return NotFound(new { message = "Doctor not found." });
-            return Ok(result);
+            var result = await _reviewService.GetDoctorReviewsAsync(doctorId, page, pageSize);
+            return result.ToActionResult(this);
         }
 
-        // GET api/reviews/{id}  → 200 | 404
+        /// <summary>
+        /// Gets the rating distribution breakdown for a doctor (count per star level).
+        /// Returns how many 5-star, 4-star, 3-star, 2-star, and 1-star reviews the doctor has.
+        /// </summary>
+        /// <param name="doctorId">The doctor's ID</param>
+        [HttpGet("doctors/{doctorId}/distribution")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(RatingDistributionDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetRatingDistribution(int doctorId)
+        {
+            var result = await _reviewService.GetRatingDistributionAsync(doctorId);
+            return result.ToActionResult(this);
+        }
+
+        /// <summary>
+        /// Gets a single review by its ID.
+        /// </summary>
+        /// <param name="id">The review ID</param>
         [HttpGet("{id}")]
         [AllowAnonymous]
+        [ProducesResponseType(typeof(ReviewResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetReviewById(int id)
         {
             var result = await _reviewService.GetReviewByIdAsync(id);
-            if (result is null) return NotFound(new { message = "Review not found." });
-            return Ok(result);
+            return result.ToActionResult(this);
         }
 
-        // DELETE api/reviews/{id}/admin  → 200 | 404
+        /// <summary>
+        /// Admin-only: Deletes any review by ID.
+        /// </summary>
+        /// <param name="id">The review ID to delete</param>
         [HttpDelete("{id}/admin")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AdminDeleteReview(int id)
         {
             var result = await _reviewService.AdminDeleteReviewAsync(id);
