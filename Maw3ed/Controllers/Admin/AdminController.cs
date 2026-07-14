@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.BLL;
+using Maw3ed.BLL.DTOs.AdminPayments;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
@@ -18,6 +20,7 @@ namespace Maw3ed.APIs
         private readonly IDoctorManager _doctorManager;
         private readonly IAdminDashboardService _dashboardService;
         private readonly IAdminAppointmentService _appointmentService;
+        private readonly IAdminPaymentsService _paymentsService;
 
         public AdminController(IDoctorManager doctorManager, IAdminDashboardService dashboardService, IAdminAppointmentService appointmentService)
         {
@@ -147,6 +150,61 @@ namespace Maw3ed.APIs
             var doctor = await _dashboardService.GetDoctorDetailAsync(id);
             if (doctor == null) return NotFound(new { message = "Doctor not found." });
             return Ok(doctor);
+        }
+
+        // ============ جديد: شاشة "المدفوعات والعمولات" ============
+
+        // GET: api/admin/payments/summary
+        // كروت الـ 4 فوق الشاشة: المدفوعات المعلقة - أرباح الأطباء - عمولة المنصة - إجمالي الإيرادات
+        [HttpGet("payments/summary")]
+        public async Task<IActionResult> GetPaymentsSummary()
+        {
+            var summary = await _paymentsService.GetSummaryAsync();
+            return Ok(summary);
+        }
+
+        // GET: api/admin/payments/commission-rate
+        [HttpGet("payments/commission-rate")]
+        public async Task<IActionResult> GetCommissionRate()
+        {
+            var rate = await _paymentsService.GetCommissionRateAsync();
+            return Ok(rate);
+        }
+
+        // PUT: api/admin/payments/commission-rate
+        // زر "تعديل نسبة العمولة". body: { "commissionRate": 12 }
+        [HttpPut("payments/commission-rate")]
+        public async Task<IActionResult> UpdateCommissionRate([FromBody] UpdateCommissionRateDto dto)
+        {
+            var adminUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            var (success, message, data) = await _paymentsService.UpdateCommissionRateAsync(dto.CommissionRate, adminUserId);
+
+            if (!success)
+                return BadRequest(new { message });
+
+            return Ok(new { message, data });
+        }
+
+        // GET: api/admin/payments/revenue-trend?months=6
+        // بيانات رسم "تحليل الإيرادات والعمولات" (عمودين لكل شهر: إيرادات وعمولة)
+        [HttpGet("payments/revenue-trend")]
+        public async Task<IActionResult> GetRevenueCommissionTrend([FromQuery] int months = 6)
+        {
+            var trend = await _paymentsService.GetRevenueCommissionTrendAsync(months);
+            return Ok(trend);
+        }
+
+        // GET: api/admin/payments/transactions?page=1&pageSize=10&status=Paid
+        // جدول "قائمة أحدث المعاملات المالية". status اختياري: Pending / Paid / Failed / Refunded
+        [HttpGet("payments/transactions")]
+        public async Task<IActionResult> GetTransactions(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? status = null)
+        {
+            var result = await _paymentsService.GetTransactionsAsync(page, pageSize, status);
+            return Ok(result);
         }
     }
 }
