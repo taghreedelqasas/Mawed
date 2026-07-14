@@ -98,7 +98,40 @@ namespace Maw3ed.BLL
             await _unitOfWork.GetRepository<DoctorWallet>().AddAsync(wallet);
             await _unitOfWork.SaveChangesAsync();
         }
+        public async Task<(bool Success, string Message)> RejectDoctorAsync(string userId, string? reason = null)
+        {
+            var doctors = await _unitOfWork
+                .GetRepository<Doctor>()
+                .GetAllAsync(d => d.UserId == userId, d => d.User);
 
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return (false, "Doctor not found.");
+
+            if (doctor.IsVerified)
+                return (false, "Cannot reject a doctor who is already approved.");
+
+            var email = doctor.User.Email!;
+            var name = $"{doctor.User.FirstName} {doctor.User.LastName}";
+
+            // Remove the pending doctor request.
+            _unitOfWork.GetRepository<Doctor>().Delete(doctor);
+
+            // Deactivate the linked account so they can't log in with a rejected request,
+            // while keeping the email history for auditing.
+            doctor.User.IsActive = false;
+            await _unitOfWork.AuthRepository.UpdateUserAsync(doctor.User);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            await _emailService.SendDoctorRejectionAsync(
+                toEmail: email,
+                toName: name,
+                reason: reason);
+
+            return (true, "Doctor rejected successfully.");
+        }
         public async Task UpdateAsync(DoctorUpdateDto doctorDto)
         {
             var existingDoctor = await _unitOfWork.GetRepository<Doctor>().GetByIdAsync(doctorDto.Id);
@@ -137,15 +170,14 @@ namespace Maw3ed.BLL
             {
                 UserId = d.UserId,
                 FullName = d.User.FirstName + " " + d.User.LastName,
-                Email = d.User.Email!,
                 PhoneNumber = d.User.PhoneNumber!,
-                LicenseNumber = d.LicenseNumber,
-                Certificate = d.Certificate,
+                LicenseImage =d.LicenseImage!,
+                CertificateImage = d.CertificateImage!,
+                SSNImg = d.SSNImage!,
                 ConsultationFee = d.ConsultationFee,
                 Address = d.Address,
-                GraduationDate = d.GraduationDate,
                 DepartmentId = d.DepartmentId,
-                RegisteredAt = d.CreatedAt
+                IsVerified = d.IsVerified,
             }).ToList();
         }
 
