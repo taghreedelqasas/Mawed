@@ -22,11 +22,12 @@ namespace Maw3ed.APIs
         private readonly IAdminAppointmentService _appointmentService;
         private readonly IAdminPaymentsService _paymentsService;
 
-        public AdminController(IDoctorManager doctorManager, IAdminDashboardService dashboardService, IAdminAppointmentService appointmentService)
+        public AdminController(IDoctorManager doctorManager, IAdminDashboardService dashboardService, IAdminAppointmentService appointmentService, IAdminPaymentsService paymentsService)
         {
             _doctorManager = doctorManager;
             _dashboardService = dashboardService;
             _appointmentService = appointmentService;
+            _paymentsService = paymentsService;
         }
 
         // GET: api/admin/pending-doctors

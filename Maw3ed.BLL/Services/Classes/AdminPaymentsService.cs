@@ -4,11 +4,6 @@ using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
 
-using Maw3ed.BLL.DTOs.AdminDashboard;
-using Maw3ed.BLL.DTOs.AdminPayments;
-using Maw3ed.BLL.Services.Interfaces;
-using Maw3ed.DAL;
-using Maw3ed.DAL.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;

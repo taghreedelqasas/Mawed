@@ -15,17 +15,21 @@ namespace Maw3ed.BLL.Services.Classes
         private readonly AppDbContext _context;
         private readonly IPaymobGateway _paymob;
         private readonly ILogger<PaymentService> _logger;
+        private readonly IAdminPaymentsService _adminPaymentsService;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
             AppDbContext context,
             IPaymobGateway paymob,
-            ILogger<PaymentService> logger)
+            ILogger<PaymentService> logger,
+           IAdminPaymentsService adminPaymentsService
+)
         {
             _unitOfWork = unitOfWork;
             _context = context;
             _paymob = paymob;
             _logger = logger;
+            _adminPaymentsService = adminPaymentsService;
         }
 
         public async Task<ServiceResult<PaymentInitiateResponseDto>> InitiatePaymentAsync(
@@ -50,8 +54,16 @@ namespace Maw3ed.BLL.Services.Classes
                 AppointmentId = appointment.Id
             };
 
+            //payment.Amount = appointment.Doctor.ConsultationFee;
+            //payment.SystemFee = Math.Round(payment.Amount * 0.10m, 2);
+
+            //sama
+            var commissionRate = (await _adminPaymentsService.GetCommissionRateAsync()).CommissionRate;
+
             payment.Amount = appointment.Doctor.ConsultationFee;
-            payment.SystemFee = Math.Round(payment.Amount * 0.10m, 2);
+            payment.SystemFee = Math.Round(payment.Amount * (commissionRate / 100m), 2);
+            //sama
+
             payment.Status = PaymentStatus.Pending;
             payment.Method = paymentMethod switch
             {
