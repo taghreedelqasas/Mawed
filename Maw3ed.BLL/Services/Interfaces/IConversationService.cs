@@ -9,9 +9,9 @@ namespace Maw3ed.BLL.Services.Interfaces
 {
     public interface IConversationService
     {
-        Task<ConversationDto> GetOrCreateConversationAsync(int patientId, int doctorId);
-        Task<IEnumerable<ConversationDto>> GetPatientConversationsAsync(int patientId);
-        Task<IEnumerable<ConversationDto>> GetDoctorConversationsAsync(int doctorId);
+        Task<ConversationDto> GetOrCreateConversationAsync(int patientId, int doctorId, string currentUserId);
+        Task<IEnumerable<ConversationDto>> GetPatientConversationsAsync(int patientId, string currentUserId);
+        Task<IEnumerable<ConversationDto>> GetDoctorConversationsAsync(int doctorId, string currentUserId);
 
         Task<MessageDto> SendMessageAsync(int conversationId, string senderUserId, SendMessageDto dto);
 
