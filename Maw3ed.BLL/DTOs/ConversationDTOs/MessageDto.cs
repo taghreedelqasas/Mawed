@@ -10,6 +10,8 @@ namespace Maw3ed.BLL.DTOs.ConversationDTOs
     {
         public int Id { get; set; }
         public string SenderUserId { get; set; }
+        public string SenderRole { get; set; }
+        public bool IsMine { get; set; }
         public string? Content { get; set; }
         public bool IsRead { get; set; }
         public DateTime CreatedAt { get; set; }

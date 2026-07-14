@@ -83,10 +83,13 @@ namespace Maw3ed.APIs.Controllers
             var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
             try
             {
                 var conversation = await _conversationService
-                    .GetOrCreateConversationAsync(patientId.Value, doctorId);
+                    .GetOrCreateConversationAsync(patientId.Value, doctorId, userId);
                 return Ok(conversation);
             }
             catch (Exception ex)
@@ -115,10 +118,13 @@ namespace Maw3ed.APIs.Controllers
             var doctorId = await GetDoctorIdAsync();
             if (doctorId == null) return Unauthorized();
 
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
             try
             {
                 var conversation = await _conversationService
-                    .GetOrCreateConversationAsync(patientId, doctorId.Value);
+                    .GetOrCreateConversationAsync(patientId, doctorId.Value, userId);
                 return Ok(conversation);
             }
             catch (Exception ex)
@@ -144,8 +150,11 @@ namespace Maw3ed.APIs.Controllers
             var patientId = await GetPatientIdAsync();
             if (patientId == null) return Unauthorized();
 
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
             var conversations = await _conversationService
-                .GetPatientConversationsAsync(patientId.Value);
+                .GetPatientConversationsAsync(patientId.Value, userId);
             return Ok(conversations);
         }
 
@@ -166,8 +175,11 @@ namespace Maw3ed.APIs.Controllers
             var doctorId = await GetDoctorIdAsync();
             if (doctorId == null) return Unauthorized();
 
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
             var conversations = await _conversationService
-                .GetDoctorConversationsAsync(doctorId.Value);
+                .GetDoctorConversationsAsync(doctorId.Value, userId);
             return Ok(conversations);
         }
 
