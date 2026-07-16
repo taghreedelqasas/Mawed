@@ -1,17 +1,15 @@
-﻿using Maw3ed.BLL.DTOs.ConversationDTOs;
+﻿using Maw3ed.APIs.Hubs;
+using Maw3ed.BLL.DTOs.ConversationDTOs;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Reposatries.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
 namespace Maw3ed.APIs.Controllers
 {
-    /// <summary>
-    /// Provides REST API endpoints for doctor-patient conversations and messaging.
-    /// Supports text messages, file attachments, read receipts, and conversation management.
-    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
@@ -20,15 +18,18 @@ namespace Maw3ed.APIs.Controllers
         private readonly IConversationService _conversationService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IWebHostEnvironment _env;
+        private readonly IHubContext<ChatHub> _hubContext;
 
         public ConversationController(
             IConversationService conversationService,
             IUnitOfWork unitOfWork,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IHubContext<ChatHub> hubContext)
         {
             _conversationService = conversationService;
             _unitOfWork = unitOfWork;
             _env = env;
+            _hubContext = hubContext;
         }
 
         // ============ Helpers ============
@@ -246,6 +247,10 @@ namespace Maw3ed.APIs.Controllers
             {
                 var message = await _conversationService
                     .SendMessageAsync(conversationId, userId, dto);
+
+                await _hubContext.Clients.Group(conversationId.ToString())
+                    .SendAsync("ReceiveMessage", message);
+
                 return Ok(message);
             }
             catch (UnauthorizedAccessException ex)
@@ -310,6 +315,9 @@ namespace Maw3ed.APIs.Controllers
                 var message = await _conversationService.SendAttachmentAsync(
                     conversationId, userId, attachmentUrl, file.FileName, attachmentType, caption);
 
+                await _hubContext.Clients.Group(conversationId.ToString())
+                    .SendAsync("ReceiveMessage", message);
+
                 return Ok(message);
             }
             catch (UnauthorizedAccessException ex)
@@ -345,6 +353,10 @@ namespace Maw3ed.APIs.Controllers
             try
             {
                 await _conversationService.MarkMessagesAsReadAsync(conversationId, userId);
+
+                await _hubContext.Clients.Group(conversationId.ToString())
+                    .SendAsync("MessagesRead", conversationId, userId);
+
                 return Ok("تم تحديد الرسايل كمقروءة");
             }
             catch (UnauthorizedAccessException ex)
