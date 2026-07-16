@@ -273,9 +273,13 @@ var totalCommission = await _context.Payments
                     AverageRating = d.Reviews.Any()
                         ? Math.Round(d.Reviews.Average(r => r.Rating), 1)
                         : 0,
+                    //sama
                     TotalReviews = d.Reviews.Count,
                     TotalAppointments = d.Availabilities
-                        .Count(a => a.Appointment != null)
+    .Count(a => a.Appointment != null),
+                    Revenue = d.ConsultationFee * d.Availabilities
+    .Count(a => a.Appointment != null)
+    //sama
                 })
                 .ToListAsync();
 
