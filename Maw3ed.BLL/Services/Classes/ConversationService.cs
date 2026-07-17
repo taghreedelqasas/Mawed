@@ -1,4 +1,5 @@
 ﻿using Maw3ed.BLL.DTOs.ConversationDTOs;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
@@ -217,7 +218,7 @@ namespace Maw3ed.BLL.Services.Classes
                 DoctorName = c.Doctor?.User != null
                     ? $"{c.Doctor.User.FirstName} {c.Doctor.User.LastName}".Trim()
                     : null,
-                DoctorImage = c.Doctor?.ImageProfile,
+                DoctorImage = ImageUrlHelper.ToFullUrl(c.Doctor?.ImageProfile),
                 PatientName = c.Patient?.User != null
                     ? $"{c.Patient.User.FirstName} {c.Patient.User.LastName}".Trim()
                     : null,
@@ -244,7 +245,7 @@ namespace Maw3ed.BLL.Services.Classes
                 Content = m.Content,
                 IsRead = m.IsRead,
                 CreatedAt = m.CreatedAt,
-                AttachmentUrl = m.AttachmentUrl,
+                AttachmentUrl = ImageUrlHelper.ToFullUrl(m.AttachmentUrl),
                 AttachmentName = m.AttachmentName,
                 AttachmentType = m.AttachmentType
             };

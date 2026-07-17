@@ -1,5 +1,6 @@
 using Maw3ed.BLL.Common;
 using Maw3ed.BLL.DTOs.Appointment;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Reposatries.Interfaces;
@@ -491,7 +492,7 @@ namespace Maw3ed.BLL.Services.Classes
                 DoctorId        = a.DoctorId,
                 DoctorName      = $"{a.Doctor?.User?.FirstName} {a.Doctor?.User?.LastName}",
                 DoctorSpecialty = a.Doctor?.Department?.Name ?? string.Empty,
-                DoctorImage     = a.Doctor?.ImageProfile,
+                DoctorImage     = ImageUrlHelper.ToFullUrl(a.Doctor?.ImageProfile),
                 SlotStart       = slot.StartTime,
                 SlotEnd         = slot.EndTime,
                 CreatedAt       = a.CreatedAt,

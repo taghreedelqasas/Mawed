@@ -1,9 +1,5 @@
 ﻿using Maw3ed.BLL.DTOs.AdminDashboard;
-using Maw3ed.BLL.Services.Interfaces;
-using Maw3ed.DAL;
-using Maw3ed.DAL.Data.Models;
-
-using Maw3ed.BLL.DTOs.AdminDashboard;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
@@ -247,7 +243,7 @@ var totalCommission = await _context.Payments
                     Id = p.Id,
                     FullName = p.User.FirstName + " " + p.User.LastName,
                     Email = p.User.Email!,
-                    ProfilePictureUrl = p.User.ProfilePictureUrl,
+                    ProfilePictureUrl = ImageUrlHelper.ToFullUrl(p.User.ProfilePictureUrl),
                     TotalAppointments = p.Appointments.Count
                 })
                 .ToListAsync();
@@ -269,7 +265,7 @@ var totalCommission = await _context.Payments
                     FullName = d.User.FirstName + " " + d.User.LastName,
                     Department = d.Department.Name,
                     Address = d.Address,
-                    ProfilePictureUrl = d.ImageProfile,
+                    ProfilePictureUrl = ImageUrlHelper.ToFullUrl(d.ImageProfile),
                     AverageRating = d.Reviews.Any()
                         ? Math.Round(d.Reviews.Average(r => r.Rating), 1)
                         : 0,
@@ -303,7 +299,7 @@ var totalCommission = await _context.Payments
                 FullName = patient.User.FirstName + " " + patient.User.LastName,
                 Email = patient.User.Email!,
                 PhoneNumber = patient.User.PhoneNumber,
-                ProfilePictureUrl = patient.User.ProfilePictureUrl,
+                ProfilePictureUrl = ImageUrlHelper.ToFullUrl(patient.User.ProfilePictureUrl),
                 Gender = FormatGender(patient.User.Gender),
                 Age = CalculateAge(patient.User.BirthDate),
                 RegisteredAt = patient.CreatedAt.ToString("yyyy-MM-dd"),
@@ -315,7 +311,7 @@ var totalCommission = await _context.Payments
                     {
                         Id = f.Id,
                         FileName = f.FileName,
-                        FileUrl = f.FileUrl,
+                        FileUrl = ImageUrlHelper.ToFullUrl(f.FileUrl),
                         FileType = f.FileType,
                         CategoryLabel = MedicalFileCategoryLabels
                             .FirstOrDefault(c => c.Category == f.Category).Label ?? f.Category.ToString(),
@@ -344,7 +340,7 @@ var totalCommission = await _context.Payments
                 FullName = doctor.User.FirstName + " " + doctor.User.LastName,
                 Email = doctor.User.Email!,
                 PhoneNumber = doctor.User.PhoneNumber,
-                ProfilePictureUrl = doctor.ImageProfile,
+                ProfilePictureUrl = ImageUrlHelper.ToFullUrl(doctor.ImageProfile),
                 Gender = FormatGender(doctor.User.Gender),
                 Age = CalculateAge(doctor.User.BirthDate),
                 RegisteredAt = doctor.CreatedAt.ToString("yyyy-MM-dd"),

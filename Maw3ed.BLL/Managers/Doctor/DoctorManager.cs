@@ -1,4 +1,5 @@
-﻿using Maw3ed.DAL;
+﻿using Maw3ed.BLL.Helpers;
+using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
 using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
@@ -38,7 +39,7 @@ namespace Maw3ed.BLL
                 UserName = d.User?.UserName ?? " ",
                 FirstName = d.User?.FirstName,
                 LastName = d.User?.LastName,
-                ImageProfile = d.ImageProfile
+                ImageProfile = ImageUrlHelper.ToFullUrl(d.ImageProfile)
             });
         }
 
@@ -66,7 +67,7 @@ namespace Maw3ed.BLL
                 UserName = doctor.User?.UserName ?? "",
                 FirstName = doctor.User?.FirstName,
                 LastName = doctor.User?.LastName,
-                ImageProfile = doctor.ImageProfile
+                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.ImageProfile)
             };
         }
 
@@ -171,9 +172,9 @@ namespace Maw3ed.BLL
                 UserId = d.UserId,
                 FullName = d.User.FirstName + " " + d.User.LastName,
                 PhoneNumber = d.User.PhoneNumber!,
-                LicenseImage =d.LicenseImage!,
-                CertificateImage = d.CertificateImage!,
-                SSNImg = d.SSNImage!,
+                LicenseImage = ImageUrlHelper.ToFullUrl(d.LicenseImage),
+                CertificateImage = ImageUrlHelper.ToFullUrl(d.CertificateImage),
+                SSNImg = ImageUrlHelper.ToFullUrl(d.SSNImage),
                 ConsultationFee = d.ConsultationFee,
                 Address = d.Address,
                 DepartmentId = d.DepartmentId,
@@ -244,7 +245,7 @@ namespace Maw3ed.BLL
                 UserName = doctor.User?.UserName ?? "",
                 FirstName = doctor.User?.FirstName,
                 LastName = doctor.User?.LastName,
-                ImageProfile = doctor.ImageProfile
+                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.ImageProfile)
             };
         }
 
