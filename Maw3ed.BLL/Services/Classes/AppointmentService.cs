@@ -493,7 +493,7 @@ namespace Maw3ed.BLL.Services.Classes
                 DoctorId        = a.DoctorId,
                 DoctorName      = $"{a.Doctor?.User?.FirstName} {a.Doctor?.User?.LastName}",
                 DoctorSpecialty = a.Doctor?.Department?.Name ?? string.Empty,
-                DoctorImage     = ImageUrlHelper.ToFullUrl(a.Doctor?.ImageProfile),
+                DoctorImage = ImageUrlHelper.ToFullUrl(a.Doctor?.User?.ProfilePictureUrl),
                 SlotStart       = slot.StartTime,
                 SlotEnd         = slot.EndTime,
                 CreatedAt       = a.CreatedAt,
