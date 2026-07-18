@@ -5,7 +5,7 @@ namespace Maw3ed.BLL.DTOs.Appointment
         public int Id { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? Notes { get; set; }
-        public string PatientImageUrl { get; set; }
+        public string? PatientImageUrl { get; set; }
         public int PatientId { get; set; }
         public string PatientName { get; set; } = string.Empty;
 
