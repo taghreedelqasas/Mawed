@@ -1,4 +1,5 @@
-﻿using Maw3ed.DAL;
+﻿using Maw3ed.BLL.Helpers;
+using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
 using Maw3ed.DAL.DoctorDev.DoctorDtos;
 using Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces;
@@ -36,7 +37,9 @@ namespace Maw3ed.BLL
                 IsVerified = d.IsVerified,
                 DepartmentName = d.Department?.Name ?? "",
                 UserName = d.User?.UserName ?? " ",
-                ImageProfile = d.ImageProfile
+                FirstName = d.User?.FirstName,
+                LastName = d.User?.LastName,
+                ImageProfile = ImageUrlHelper.ToFullUrl(d.ImageProfile)
             });
         }
 
@@ -62,7 +65,9 @@ namespace Maw3ed.BLL
                 IsVerified = doctor.IsVerified,
                 DepartmentName = doctor.Department?.Name ?? "",
                 UserName = doctor.User?.UserName ?? "",
-                ImageProfile = doctor.ImageProfile
+                FirstName = doctor.User?.FirstName,
+                LastName = doctor.User?.LastName,
+                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.ImageProfile)
             };
         }
 
@@ -94,7 +99,40 @@ namespace Maw3ed.BLL
             await _unitOfWork.GetRepository<DoctorWallet>().AddAsync(wallet);
             await _unitOfWork.SaveChangesAsync();
         }
+        public async Task<(bool Success, string Message)> RejectDoctorAsync(string userId, string? reason = null)
+        {
+            var doctors = await _unitOfWork
+                .GetRepository<Doctor>()
+                .GetAllAsync(d => d.UserId == userId, d => d.User);
 
+            var doctor = doctors.FirstOrDefault();
+
+            if (doctor is null)
+                return (false, "Doctor not found.");
+
+            if (doctor.IsVerified)
+                return (false, "Cannot reject a doctor who is already approved.");
+
+            var email = doctor.User.Email!;
+            var name = $"{doctor.User.FirstName} {doctor.User.LastName}";
+
+            // Remove the pending doctor request.
+            _unitOfWork.GetRepository<Doctor>().Delete(doctor);
+
+            // Deactivate the linked account so they can't log in with a rejected request,
+            // while keeping the email history for auditing.
+            doctor.User.IsActive = false;
+            await _unitOfWork.AuthRepository.UpdateUserAsync(doctor.User);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            await _emailService.SendDoctorRejectionAsync(
+                toEmail: email,
+                toName: name,
+                reason: reason);
+
+            return (true, "Doctor rejected successfully.");
+        }
         public async Task UpdateAsync(DoctorUpdateDto doctorDto)
         {
             var existingDoctor = await _unitOfWork.GetRepository<Doctor>().GetByIdAsync(doctorDto.Id);
@@ -133,15 +171,14 @@ namespace Maw3ed.BLL
             {
                 UserId = d.UserId,
                 FullName = d.User.FirstName + " " + d.User.LastName,
-                Email = d.User.Email!,
                 PhoneNumber = d.User.PhoneNumber!,
-                LicenseNumber = d.LicenseNumber,
-                Certificate = d.Certificate,
+                LicenseImage = ImageUrlHelper.ToFullUrl(d.LicenseImage),
+                CertificateImage = ImageUrlHelper.ToFullUrl(d.CertificateImage),
+                SSNImg = ImageUrlHelper.ToFullUrl(d.SSNImage),
                 ConsultationFee = d.ConsultationFee,
                 Address = d.Address,
-                GraduationDate = d.GraduationDate,
                 DepartmentId = d.DepartmentId,
-                RegisteredAt = d.CreatedAt
+                IsVerified = d.IsVerified,
             }).ToList();
         }
 
@@ -161,6 +198,20 @@ namespace Maw3ed.BLL
 
             doctor.IsVerified = true;
             _unitOfWork.GetRepository<Doctor>().Update(doctor);
+
+            var existingWallet = (await _unitOfWork.GetRepository<DoctorWallet>()
+                .GetAllAsync(w => w.DoctorId == doctor.Id)).FirstOrDefault();
+
+            if (existingWallet is null)
+            {
+                await _unitOfWork.GetRepository<DoctorWallet>().AddAsync(new DoctorWallet
+                {
+                    DoctorId = doctor.Id,
+                    Balance = 0,
+                    PendingBalance = 0
+                });
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             await _emailService.SendDoctorApprovalAsync(
@@ -192,7 +243,9 @@ namespace Maw3ed.BLL
                 IsVerified = doctor.IsVerified,
                 DepartmentName = doctor.Department?.Name ?? "",
                 UserName = doctor.User?.UserName ?? "",
-                ImageProfile = doctor.ImageProfile
+                FirstName = doctor.User?.FirstName,
+                LastName = doctor.User?.LastName,
+                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.ImageProfile)
             };
         }
 

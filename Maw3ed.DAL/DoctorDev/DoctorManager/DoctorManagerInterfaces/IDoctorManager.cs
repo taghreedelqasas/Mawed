@@ -9,6 +9,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager.DoctorManagerInterfaces
         Task<List<DoctorPendingDto>> GetPendingDoctorsAsync();
         Task<DoctorReadDTo?> GetByIdAsync(int id);
         Task<(bool Success, string Message)> ApproveDoctorAsync(string userId);
+        Task<(bool Success, string Message)> RejectDoctorAsync(string userId, string? reason = null);
         Task AddAsync(DoctorCreateDto doctor);
 
         Task UpdateAsync(DoctorUpdateDto doctor);

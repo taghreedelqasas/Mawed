@@ -11,11 +11,19 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
 {
     public class DoctorService : IDoctorService
     {
+        private const string BaseUrl = "https://mawed.runasp.net";
         private readonly AppDbContext _context;
 
         public DoctorService(AppDbContext context)
         {
             _context = context;
+        }
+
+        private static string? ToFullUrl(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            if (path.StartsWith("http")) return path;
+            return $"{BaseUrl}{path}";
         }
 
         public async Task<IEnumerable<DoctorSearchResultDto>> SearchDoctorsAsync(
@@ -58,7 +66,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 FullName = d.User.FirstName + " " + d.User.LastName,
                 Specialty = d.Department.Name,
                 Location = d.Address,
-                ImageProfile = d.ImageProfile,
+                ImageProfile = ToFullUrl(d.ImageProfile),
                 AverageRating = d.Reviews.Any()
                     ? Math.Round(d.Reviews.Average(r => r.Rating), 1) : 0,
                 TotalReviews = d.Reviews.Count,
@@ -106,7 +114,7 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
                 FullName = doctor.User.FirstName + " " + doctor.User.LastName,
                 Specialty = doctor.Department.Name,
                 Location = doctor.Address,
-                ImageProfile = doctor.ImageProfile,
+                ImageProfile = ToFullUrl(doctor.ImageProfile),
                 AverageRating = doctor.Reviews.Any()
                     ? Math.Round(doctor.Reviews.Average(r => r.Rating), 1) : 0,
                 TotalReviews = doctor.Reviews.Count,

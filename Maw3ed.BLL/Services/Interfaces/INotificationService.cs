@@ -14,5 +14,11 @@ namespace Maw3ed.BLL.Services.Interfaces
 
         // جيب كل الإشعارات بتاعة اليوزر
         Task<IEnumerable<NotificationDto>> GetUserNotificationsAsync(string userId);
+
+        // اقرأ إشعار
+        Task MarkAsReadAsync(int notificationId, string userId);
+
+        // اقرأ كل الإشعارات
+        Task MarkAllAsReadAsync(string userId);
     }
 }

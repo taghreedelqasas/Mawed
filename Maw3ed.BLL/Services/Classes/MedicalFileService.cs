@@ -1,4 +1,5 @@
 ﻿using Maw3ed.BLL.DTOs.MedicalFiles;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
@@ -208,7 +209,7 @@ namespace Maw3ed.BLL.Services.Classes
         {
             Id = file.Id,
             FileName = file.FileName,
-            FileUrl = file.FileUrl,
+            FileUrl = ImageUrlHelper.ToFullUrl(file.FileUrl),
             FileType = file.FileType,
             FileSizeInBytes = file.FileSizeInBytes,
             Category = file.Category,

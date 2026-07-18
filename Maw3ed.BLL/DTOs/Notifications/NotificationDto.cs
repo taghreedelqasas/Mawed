@@ -13,6 +13,7 @@ namespace Maw3ed.BLL.DTOs.Notifications
         public string Title { get; set; }
         public string Body { get; set; }
         public NotificationStatus Status { get; set; }
+        public bool IsRead { get; set; }
         public DateTime CreatedAtUtc { get; set; }
         public DateTime? SentAtUtc { get; set; }
     }

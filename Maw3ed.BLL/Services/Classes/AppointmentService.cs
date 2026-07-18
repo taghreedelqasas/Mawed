@@ -1,5 +1,6 @@
 using Maw3ed.BLL.Common;
 using Maw3ed.BLL.DTOs.Appointment;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Reposatries.Interfaces;
@@ -94,34 +95,18 @@ namespace Maw3ed.BLL.Services.Classes
 
             if (hasConflict)
                 return new(false, "You already have an appointment in this time range.", null, ServiceError.Conflict);
-            // دور على Appointment ملغي قديم على نفس الـ Slot
+
+            // حذف أي Appointment ملغي قديم على نفس الـ Slot بدل التعديل عليه
             var cancelledAppointment = await _context.Appointments
                 .FirstOrDefaultAsync(a => a.DoctorAvailabilityId == dto.DoctorAvailabilityId
                                         && a.Status == AppointmentStatus.Cancelled);
 
             if (cancelledAppointment != null)
             {
-                // حدث الـ Appointment القديم بدل ما تعمل جديد
-                cancelledAppointment.PatientId = patient.Id;
-                cancelledAppointment.DoctorId = slot.DoctorId;
-                cancelledAppointment.Status = AppointmentStatus.Pending;
-                cancelledAppointment.Notes = dto.Notes;
-                slot.IsBooked = true;
-
-                _unitOfWork.GetRepository<Appointment>().Update(cancelledAppointment);
-                _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);
+                _context.Appointments.Remove(cancelledAppointment);
                 await _unitOfWork.SaveChangesAsync();
-
-                var updated = await _context.Appointments
-                    .Include(a => a.Patient).ThenInclude(p => p!.User)
-                    .Include(a => a.Doctor).ThenInclude(d => d!.User)
-                    .Include(a => a.Doctor).ThenInclude(d => d!.Department)
-                    .Include(a => a.DoctorAvailability)
-                    .FirstAsync(a => a.Id == cancelledAppointment.Id);
-
-                return new(true, "Appointment booked successfully.",
-                    MapToResponse(updated, updated.DoctorAvailability));
             }
+
             var appointment = new Appointment
             {
                 PatientId = patient.Id,
@@ -141,7 +126,14 @@ namespace Maw3ed.BLL.Services.Classes
             slot.IsBooked = true;
             await _unitOfWork.GetRepository<Appointment>().AddAsync(appointment);
             _unitOfWork.GetRepository<DoctorAvailability>().Update(slot);
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return new(false, "This slot was just booked by another patient. Please choose a different slot.", null, ServiceError.Conflict);
+            }
 
             var saved = await _context.Appointments
                 .Include(a => a.Patient).ThenInclude(p => p!.User)
@@ -193,6 +185,7 @@ namespace Maw3ed.BLL.Services.Classes
 
             var appointment = await _context.Appointments
                 .Include(a => a.DoctorAvailability)
+                .Include(a => a.Payment)
                 .FirstOrDefaultAsync(a => a.Id == appointmentId && a.PatientId == patient.Id);
 
             if (appointment is null)
@@ -221,7 +214,6 @@ namespace Maw3ed.BLL.Services.Classes
                 .FirstAsync(a => a.Id == appointmentId);
 
             // إشعار للمريض
-            // إشعار للمريض
             await _notificationService.SendEmailAsync(
                 cancelledAppt.Patient.UserId,
                 "تم إلغاء موعدك",
@@ -229,10 +221,18 @@ namespace Maw3ed.BLL.Services.Classes
                 appointmentId
             );
 
+            // إشعار للدكتور
+            await _notificationService.SendEmailAsync(
+                cancelledAppt.Doctor.UserId,
+                "تم إلغاء موعد",
+                $"قام المريض {cancelledAppt.Patient?.User?.FirstName} {cancelledAppt.Patient?.User?.LastName} بإلغاء موعدك في {cancelledAppt.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                appointmentId
+            );
+
             // ── استرداد المبلغ لو الموعد كان مدفوع وتم الإلغاء قبل 24 ساعة ──
             string refundNote = "";
 
-            if (appointment.PaymentStatus == PaymentStatus.Paid)
+            if (appointment.Payment?.Status == PaymentStatus.Paid)
             {
                 var hoursUntilAppointment = (appointment.DoctorAvailability.StartTime - DateTime.UtcNow).TotalHours;
 
@@ -242,6 +242,16 @@ namespace Maw3ed.BLL.Services.Classes
                     refundNote = refundResult.Success
                         ? " وتم استرداد المبلغ المدفوع بنجاح."
                         : " لكن حصلت مشكلة أثناء استرداد المبلغ، هيتم التعامل معاها يدويًا من فريق الدعم.";
+
+                    if (refundResult.Success)
+                    {
+                        await _notificationService.SendEmailAsync(
+                            cancelledAppt.Doctor.UserId,
+                            "تم استرداد مبلغ موعد ملغي",
+                            $"تم استرداد المبلغ للمريض {cancelledAppt.Patient?.User?.FirstName} {cancelledAppt.Patient?.User?.LastName} عن موعد في {cancelledAppt.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                            appointmentId
+                        );
+                    }
                 }
                 else
                 {
@@ -315,6 +325,7 @@ namespace Maw3ed.BLL.Services.Classes
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
                 .Include(a => a.Doctor).ThenInclude(d => d!.Department)
                 .Include(a => a.Patient).ThenInclude(p => p!.User)
+                .Include(a => a.Payment)
                 .Where(a => a.Patient.UserId == patientUserId)
                 .OrderByDescending(a => a.DoctorAvailability.StartTime)
                 .ToListAsync();
@@ -331,6 +342,7 @@ namespace Maw3ed.BLL.Services.Classes
                 .Include(a => a.Doctor).ThenInclude(d => d!.User)
                 .Include(a => a.Doctor).ThenInclude(d => d!.Department)
                 .Include(a => a.Patient).ThenInclude(p => p!.User)
+                .Include(a => a.Payment)
                 .Where(a => a.Doctor.UserId == doctorUserId)
                 .OrderByDescending(a => a.DoctorAvailability.StartTime)
                 .ToListAsync();
@@ -396,6 +408,77 @@ namespace Maw3ed.BLL.Services.Classes
             return new(true, "Appointment marked as completed.");
         }
 
+        // ── Doctor: Mark NoShow ─────────────────────────────────────────
+        public async Task<ServiceResult>
+            MarkNoShowAsync(string doctorUserId, int appointmentId)
+        {
+            var appointment = await _context.Appointments
+                .Include(a => a.Doctor)
+                .Include(a => a.DoctorAvailability)
+                .FirstOrDefaultAsync(a => a.Id == appointmentId
+                                       && a.Doctor.UserId == doctorUserId);
+
+            if (appointment is null)
+                return new(false, "Appointment not found.", ServiceError.NotFound);
+
+            if (appointment.Status != AppointmentStatus.Confirmed)
+                return new(false, $"Cannot mark as no-show. Current status: {appointment.Status}.", ServiceError.BadRequest);
+
+            if (appointment.DoctorAvailability.EndTime > DateTime.UtcNow)
+                return new(false, "Cannot mark as no-show before the appointment time has passed.", ServiceError.BadRequest);
+
+            appointment.Status = AppointmentStatus.NoShow;
+            appointment.DoctorAvailability.IsBooked = false;
+
+            _unitOfWork.GetRepository<Appointment>().Update(appointment);
+            _unitOfWork.GetRepository<DoctorAvailability>().Update(appointment.DoctorAvailability);
+            await _unitOfWork.SaveChangesAsync();
+
+            var updated = await _context.Appointments
+                .Include(a => a.Patient).ThenInclude(p => p!.User)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Doctor).ThenInclude(d => d!.Department)
+                .Include(a => a.DoctorAvailability)
+                .Include(a => a.Payment)
+                .FirstAsync(a => a.Id == appointmentId);
+
+            await _notificationService.SendEmailAsync(
+                updated.Patient.UserId,
+                "لم تحضر الموعد",
+                $"لم تحضر موعدك مع الدكتور {updated.Doctor?.User?.FirstName} في {updated.DoctorAvailability.StartTime:dd/MM/yyyy hh:mm tt}",
+                appointmentId
+            );
+
+            return new(true, "Appointment marked as no-show.");
+        }
+
+        // ── Get Appointment By Id ───────────────────────────────────────
+        public async Task<ServiceResult<AppointmentResponseDto>>
+            GetAppointmentByIdAsync(string userId, string role, int appointmentId)
+        {
+            var query = _context.Appointments
+                .Include(a => a.DoctorAvailability)
+                .Include(a => a.Doctor).ThenInclude(d => d!.User)
+                .Include(a => a.Doctor).ThenInclude(d => d!.Department)
+                .Include(a => a.Patient).ThenInclude(p => p!.User)
+                .Include(a => a.Payment)
+                .Where(a => a.Id == appointmentId);
+
+            query = role switch
+            {
+                "Patient" => query.Where(a => a.Patient.UserId == userId),
+                "Doctor" => query.Where(a => a.Doctor.UserId == userId),
+                _ => query.Where(a => false)
+            };
+
+            var appointment = await query.FirstOrDefaultAsync();
+
+            if (appointment is null)
+                return new(false, "Appointment not found.", null, ServiceError.NotFound);
+
+            return new(true, "OK", MapToResponse(appointment, appointment.DoctorAvailability));
+        }
+
         // ── Mapper ───────────────────────────────────────────────────────
         private static AppointmentResponseDto MapToResponse(Appointment a, DoctorAvailability slot)
         {
@@ -410,9 +493,11 @@ namespace Maw3ed.BLL.Services.Classes
                 DoctorId        = a.DoctorId,
                 DoctorName      = $"{a.Doctor?.User?.FirstName} {a.Doctor?.User?.LastName}",
                 DoctorSpecialty = a.Doctor?.Department?.Name ?? string.Empty,
+                DoctorImage     = ImageUrlHelper.ToFullUrl(a.Doctor?.ImageProfile),
                 SlotStart       = slot.StartTime,
                 SlotEnd         = slot.EndTime,
-                CreatedAt       = a.CreatedAt
+                CreatedAt       = a.CreatedAt,
+                PaymentStatus   = a.Payment?.Status.ToString() ?? "Pending"
             };
         }
     }

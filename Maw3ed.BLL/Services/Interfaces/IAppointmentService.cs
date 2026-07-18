@@ -23,5 +23,10 @@ namespace Maw3ed.BLL.Services.Interfaces
         Task<ServiceResult> ConfirmAppointmentAsync(string doctorUserId, int appointmentId);
 
         Task<ServiceResult> CompleteAppointmentAsync(string doctorUserId, int appointmentId);
+
+        Task<ServiceResult> MarkNoShowAsync(string doctorUserId, int appointmentId);
+
+        Task<ServiceResult<AppointmentResponseDto>> GetAppointmentByIdAsync(
+            string userId, string role, int appointmentId);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using Maw3ed.BLL.DTOs.PatientDTOs;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -61,7 +62,7 @@ namespace Maw3ed.APIs.Controllers
             try
             {
                 var url = await _userProfileService.UploadProfilePictureAsync(userId, file);
-                return Ok(new { ProfilePictureUrl = url });
+                return Ok(new { ProfilePictureUrl = ImageUrlHelper.ToFullUrl(url) });
             }
             catch (Exception ex)
             {

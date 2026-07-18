@@ -26,6 +26,5 @@ namespace Maw3ed.DAL
         public DoctorAvailability DoctorAvailability { get; set; }
 
         public Payment? Payment { get; set; }
-        public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
     }
 }

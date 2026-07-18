@@ -52,12 +52,12 @@ namespace Maw3ed.BLL.Services.Classes
                 PatientId  = patient.Id,
                 DoctorId   = doctor.Id,
                 Rating     = dto.Rating,
-                Comment    = dto.Comment,
+                Comment    = dto.Comment?.Trim(),
                 ReviewDate = DateTime.UtcNow
             };
 
              await _unitOfWork.GetRepository<Review>().AddAsync(review);
-            await _unitOfWork.SaveChangesAsync();   // FIX: async
+            await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Review submitted successfully.", MapToResponse(review, patient, doctor));
         }
@@ -84,10 +84,10 @@ namespace Maw3ed.BLL.Services.Classes
             if (review.PatientId != patient.Id)
                 return new(false, "You are not allowed to edit this review.", null, ServiceError.Forbidden);
 
-            review.Rating  = dto.Rating;
-            review.Comment = dto.Comment;
-            _unitOfWork.GetRepository<Review>().Update(review);
-            await _unitOfWork.SaveChangesAsync();   // FIX: async
+            review.Rating     = dto.Rating;
+            review.Comment    = dto.Comment?.Trim();
+            review.ReviewDate = DateTime.UtcNow;
+            await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Review updated successfully.", MapToResponse(review, review.Patient, review.Doctor));
         }
@@ -111,55 +111,81 @@ namespace Maw3ed.BLL.Services.Classes
                 return new(false, "You are not allowed to delete this review.", ServiceError.Forbidden);
 
             _unitOfWork.GetRepository<Review>().Delete(review);
-            await _unitOfWork.SaveChangesAsync();   // FIX: async
+            await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Review deleted successfully.");
         }
 
-        // ── Get My Reviews ───────────────────────────────────────────────
-        public async Task<IEnumerable<ReviewResponseDto>>
-            GetMyReviewsAsync(string patientUserId)
+        // ── Get My Reviews (Paginated) ───────────────────────────────────
+        public async Task<ServiceResult<PaginatedReviewsDto>>
+            GetMyReviewsAsync(string patientUserId, int page, int pageSize)
         {
-            var reviews = await _context.Reviews
+            var query = _context.Reviews
                 .Include(r => r.Doctor).ThenInclude(d => d!.User)
                 .Include(r => r.Doctor).ThenInclude(d => d!.Department)
                 .Include(r => r.Patient).ThenInclude(p => p!.User)
                 .Where(r => r.Patient.UserId == patientUserId)
-                .OrderByDescending(r => r.ReviewDate)
+                .OrderByDescending(r => r.ReviewDate);
+
+            var totalCount = await query.CountAsync();
+            var reviews = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return reviews.Select(r => MapToResponse(r, r.Patient, r.Doctor));
+            var result = new PaginatedReviewsDto
+            {
+                Reviews     = reviews.Select(r => MapToResponse(r, r.Patient, r.Doctor)),
+                TotalCount  = totalCount,
+                Page        = page,
+                PageSize    = pageSize,
+                TotalPages  = (int)Math.Ceiling(totalCount / (double)pageSize)
+            };
+
+            return new(true, "Reviews retrieved successfully.", result);
         }
 
-        // ── Get Doctor Reviews + Average ─────────────────────────────────
-        public async Task<DoctorReviewsSummaryDto?>
-            GetDoctorReviewsAsync(int doctorId)
+        // ── Get Doctor Reviews + Average (Paginated) ─────────────────────
+        public async Task<ServiceResult<DoctorReviewsSummaryDto>>
+            GetDoctorReviewsAsync(int doctorId, int page, int pageSize)
         {
             var doctor = await _context.Doctors
                 .Include(d => d.User)
                 .Include(d => d.Department)
                 .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsVerified);
 
-            if (doctor is null) return null;
+            if (doctor is null)
+                return new(false, "Doctor not found.", null, ServiceError.NotFound);
 
-            var reviews = await _context.Reviews
+            var query = _context.Reviews
                 .Include(r => r.Patient).ThenInclude(p => p!.User)
                 .Where(r => r.DoctorId == doctorId)
-                .OrderByDescending(r => r.ReviewDate)
+                .OrderByDescending(r => r.ReviewDate);
+
+            var totalCount = await query.CountAsync();
+            var reviews = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return new DoctorReviewsSummaryDto
+            var avgRating = totalCount > 0
+                ? Math.Round(await query.AverageAsync(r => r.Rating), 1)
+                : (double?)null;
+
+            var summary = new DoctorReviewsSummaryDto
             {
                 DoctorId      = doctor.Id,
                 DoctorName    = $"{doctor.User?.FirstName} {doctor.User?.LastName}",
-                AverageRating = reviews.Count > 0 ? Math.Round(reviews.Average(r => r.Rating), 1) : 0,
-                TotalReviews  = reviews.Count,
+                AverageRating = avgRating,
+                TotalReviews  = totalCount,
                 Reviews       = reviews.Select(r => MapToResponse(r, r.Patient, doctor))
             };
+
+            return new(true, "Doctor reviews retrieved successfully.", summary);
         }
 
         // ── Get Review By Id ─────────────────────────────────────────────
-        public async Task<ReviewResponseDto?> GetReviewByIdAsync(int reviewId)
+        public async Task<ServiceResult<ReviewResponseDto>> GetReviewByIdAsync(int reviewId)
         {
             var review = await _context.Reviews
                 .Include(r => r.Doctor).ThenInclude(d => d!.User)
@@ -167,8 +193,10 @@ namespace Maw3ed.BLL.Services.Classes
                 .Include(r => r.Patient).ThenInclude(p => p!.User)
                 .FirstOrDefaultAsync(r => r.Id == reviewId);
 
-            if (review is null) return null;
-            return MapToResponse(review, review.Patient, review.Doctor);
+            if (review is null)
+                return new(false, "Review not found.", null, ServiceError.NotFound);
+
+            return new(true, "Review retrieved successfully.", MapToResponse(review, review.Patient, review.Doctor));
         }
 
         // ── Admin Delete ─────────────────────────────────────────────────
@@ -181,9 +209,42 @@ namespace Maw3ed.BLL.Services.Classes
                 return new(false, "Review not found.", ServiceError.NotFound);
 
             _unitOfWork.GetRepository<Review>().Delete(review);
-            await _unitOfWork.SaveChangesAsync();   // FIX: async
+            await _unitOfWork.SaveChangesAsync();
 
             return new(true, "Review deleted by admin.");
+        }
+
+        // ── Get Rating Distribution ──────────────────────────────────────
+        public async Task<ServiceResult<RatingDistributionDto>>
+            GetRatingDistributionAsync(int doctorId)
+        {
+            var doctor = await _context.Doctors
+                .Include(d => d.User)
+                .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsVerified);
+
+            if (doctor is null)
+                return new(false, "Doctor not found.", null, ServiceError.NotFound);
+
+            var reviews = await _context.Reviews
+                .Where(r => r.DoctorId == doctorId)
+                .ToListAsync();
+
+            var total = reviews.Count;
+
+            var distribution = new RatingDistributionDto
+            {
+                DoctorId      = doctor.Id,
+                DoctorName    = $"{doctor.User?.FirstName} {doctor.User?.LastName}",
+                AverageRating = total > 0 ? Math.Round(reviews.Average(r => r.Rating), 1) : null,
+                TotalReviews  = total,
+                FiveStar      = reviews.Count(r => r.Rating == 5),
+                FourStar      = reviews.Count(r => r.Rating == 4),
+                ThreeStar     = reviews.Count(r => r.Rating == 3),
+                TwoStar       = reviews.Count(r => r.Rating == 2),
+                OneStar       = reviews.Count(r => r.Rating == 1)
+            };
+
+            return new(true, "Rating distribution retrieved successfully.", distribution);
         }
 
         // ── Mapper ───────────────────────────────────────────────────────

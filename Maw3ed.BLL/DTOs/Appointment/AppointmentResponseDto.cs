@@ -12,10 +12,13 @@ namespace Maw3ed.BLL.DTOs.Appointment
         public int DoctorId { get; set; }
         public string DoctorName { get; set; } = string.Empty;
         public string DoctorSpecialty { get; set; } = string.Empty;
+        public string? DoctorImage { get; set; }
 
         public DateTime SlotStart { get; set; }
         public DateTime SlotEnd { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        public string PaymentStatus { get; set; } = string.Empty;
     }
 }

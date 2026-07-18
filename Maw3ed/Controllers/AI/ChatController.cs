@@ -13,7 +13,7 @@ namespace Maw3ed.APIs.Controllers.AI
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = Roles.Patient)]
+    // [Authorize(Roles = Roles.Patient)]
     public class ChatController : ControllerBase
     {
         private readonly IChatService _chatService;
@@ -37,27 +37,23 @@ namespace Maw3ed.APIs.Controllers.AI
         }
 
         [HttpPost]
-        [EnableRateLimiting("chat")]
+        // [EnableRateLimiting("chat")]
         public async Task<IActionResult> Chat([FromBody] ChatRequest request)
         {
             var patientId = await GetCurrentPatientIdAsync();
-            if (patientId == null)
-                return Unauthorized("لا يوجد ملف مريض مرتبط بهذا الحساب.");
 
-            var response = await _chatService.SendMessageAsync(request, patientId.Value);
+            var response = await _chatService.SendMessageAsync(request, patientId ?? 0);
             return Ok(response);
         }
 
         [HttpPost("analyze-pdf")]
-        [EnableRateLimiting("chat")]
+        // [EnableRateLimiting("chat")]
         public async Task<IActionResult> AnalyzePdf(IFormFile file)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("Please upload a PDF file.");
 
             var patientId = await GetCurrentPatientIdAsync();
-            if (patientId == null)
-                return Unauthorized("لا يوجد ملف مريض مرتبط بهذا الحساب.");
 
             var savedFileName = await FileStorageHelper.SavePdfAsync(
                 file,
@@ -68,28 +64,26 @@ namespace Maw3ed.APIs.Controllers.AI
             var response = await _medicalReportService.AnalyzePdfAsync(
                 stream,
                 savedFileName,
-                patientId.Value);
+                patientId ?? 0);
 
             return Ok(response);
         }
 
         [HttpPost("analyze-image")]
-        [EnableRateLimiting("chat")]
+        // [EnableRateLimiting("chat")]
         public async Task<IActionResult> AnalyzeImage(IFormFile file)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("Please upload an image.");
 
             var patientId = await GetCurrentPatientIdAsync();
-            if (patientId == null)
-                return Unauthorized("لا يوجد ملف مريض مرتبط بهذا الحساب.");
 
             using var stream = file.OpenReadStream();
 
             var response = await _medicalImageService.AnalyzeImageAsync(
                 stream,
                 file.FileName,
-                patientId.Value);
+                patientId ?? 0);
 
             return Ok(response);
         }
@@ -97,11 +91,9 @@ namespace Maw3ed.APIs.Controllers.AI
         public async Task<IActionResult> GetHistory()
         {
             var patientId = await GetCurrentPatientIdAsync();
-            if (patientId == null)
-                return Unauthorized("لا يوجد ملف مريض مرتبط بهذا الحساب.");
 
             var messages = await _context.ChatMessages
-                .Where(m => m.ChatSession.PatientId == patientId.Value)
+                .Where(m => m.ChatSession.PatientId == (patientId ?? 0))
                 .OrderBy(m => m.CreatedAt)
                 .Select(m => new ChatHistoryItem
                 {

@@ -167,9 +167,6 @@ namespace Maw3ed.DAL.Migrations
                     b.Property<int>("PatientId")
                         .HasColumnType("int");
 
-                    b.Property<int>("PaymentStatus")
-                        .HasColumnType("int");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -295,7 +292,7 @@ namespace Maw3ed.DAL.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("Conversation");
+                    b.ToTable("Conversations");
                 });
 
             modelBuilder.Entity("Maw3ed.DAL.Data.Models.DoctorWallet", b =>
@@ -499,6 +496,9 @@ namespace Maw3ed.DAL.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("RelatedEntityId")
                         .HasColumnType("int");
 
@@ -528,7 +528,38 @@ namespace Maw3ed.DAL.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Notification");
+                    b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("Maw3ed.DAL.Data.Models.PlatformSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PlatformSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CommissionRate = 10m,
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
                 });
 
             modelBuilder.Entity("Maw3ed.DAL.Data.Models.WalletTransaction", b =>
@@ -728,6 +759,12 @@ namespace Maw3ed.DAL.Migrations
                     b.Property<bool>("IsBooked")
                         .HasColumnType("bit");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime2");
 
@@ -791,7 +828,7 @@ namespace Maw3ed.DAL.Migrations
 
                     b.HasIndex("ConversationId");
 
-                    b.ToTable("Message");
+                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("Maw3ed.DAL.Patient", b =>
@@ -854,8 +891,12 @@ namespace Maw3ed.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<long?>("PaymobOrderId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("PaymobTransactionId")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime?>("RefundedAt")
                         .HasColumnType("datetime2");
@@ -920,9 +961,13 @@ namespace Maw3ed.DAL.Migrations
 
                     b.HasIndex("DoctorId");
 
-                    b.HasIndex("PatientId");
+                    b.HasIndex("PatientId", "DoctorId")
+                        .IsUnique();
 
-                    b.ToTable("Reviews");
+                    b.ToTable("Reviews", t =>
+                        {
+                            t.HasCheckConstraint("CK_Reviews_Rating", "[Rating] BETWEEN 1 AND 5");
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -1246,7 +1291,7 @@ namespace Maw3ed.DAL.Migrations
                     b.HasOne("Maw3ed.DAL.Doctor", "Doctor")
                         .WithMany("Reviews")
                         .HasForeignKey("DoctorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Maw3ed.DAL.Patient", "Patient")

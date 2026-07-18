@@ -82,6 +82,9 @@ namespace Maw3ed.DAL.DoctorDev.DoctorManager
         // جعلنا هذه الدالة المساعدة async لأنها تقوم بطلب جلب بيانات من الداتابيز
         private async Task AddSingleDayAsync(int doctorId, DateTime startTime, DateTime endTime) // تعديل هنا
         {
+            if (startTime <= DateTime.UtcNow)
+                throw new Exception("Cannot create availability slots in the past.");
+
             if (startTime >= endTime)
                 throw new Exception($"Start time must be before end time for {startTime.Date:yyyy-MM-dd}.");
 

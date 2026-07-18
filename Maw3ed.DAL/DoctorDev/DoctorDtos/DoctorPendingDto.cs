@@ -11,7 +11,13 @@ namespace Maw3ed.DAL.DoctorDev.DoctorDtos
         public string Email { get; set; } = default!;
         public string PhoneNumber { get; set; } = default!;
         public string LicenseNumber { get; set; } = default!;
+        public string LicenseImage { get; set; } = default!;
+        public string SSNImg { get; set; } = default!;
+
+        public string CertificateImage { get; set; } = default!;
         public string Certificate { get; set; } = default!;
+
+        public bool IsVerified { get; set; } = default!;
         public decimal ConsultationFee { get; set; }
         public string Address { get; set; } = default!;
         public DateTime GraduationDate { get; set; }

@@ -21,6 +21,7 @@ namespace Maw3ed.DAL
 
         public Appointment Appointment { get; set; }
         public string? PaymobTransactionId { get; set; }
+        public long? PaymobOrderId { get; set; }
         public DateTime? RefundedAt { get; set; }
     }
 }

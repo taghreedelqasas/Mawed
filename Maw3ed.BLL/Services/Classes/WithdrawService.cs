@@ -32,6 +32,9 @@ namespace Maw3ed.BLL.Services.Classes
             if (dto.Amount <= 0)
                 return new(false, "Invalid amount.", ServiceError.BadRequest);
 
+            if (dto.Amount < 100)
+                return new(false, "The minimum withdrawal amount is 100.", ServiceError.BadRequest);
+
             if (dto.Amount > wallet.Balance)
                 return new(false, "Insufficient balance.", ServiceError.BadRequest);
 

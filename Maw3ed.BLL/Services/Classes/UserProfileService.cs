@@ -1,4 +1,5 @@
 ﻿using Maw3ed.BLL.DTOs.PatientDTOs;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Migrations;
@@ -43,7 +44,7 @@ namespace Maw3ed.BLL.Services.Classes
                 PhoneNumber = user.PhoneNumber,
                 BirthDate = user.BirthDate,
                 Gender = user.Gender == null ? null : (user.Gender == Gender.Male ? "ذكر" : "أنثى"),
-                ProfilePictureUrl = user.ProfilePictureUrl 
+                ProfilePictureUrl = ImageUrlHelper.ToFullUrl(user.ProfilePictureUrl)
             };
         }
 

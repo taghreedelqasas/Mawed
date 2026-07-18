@@ -1,4 +1,5 @@
 ﻿using Maw3ed.BLL.DTOs.ConversationDTOs;
+using Maw3ed.BLL.Helpers;
 using Maw3ed.BLL.Services.Interfaces;
 using Maw3ed.DAL;
 using Maw3ed.DAL.Data.Models;
@@ -23,24 +24,17 @@ namespace Maw3ed.BLL.Services.Classes
             _context = context;
         }
 
-        public async Task<ConversationDto> GetOrCreateConversationAsync(int patientId, int doctorId)
+        public async Task<ConversationDto> GetOrCreateConversationAsync(int patientId, int doctorId, string currentUserId)
         {
-            var appointments = await _unitOfWork.GetRepository<Appointment>()
-                .FindAsync(a => a.PatientId == patientId
-                             && a.DoctorId == doctorId
-                             && (a.Status == AppointmentStatus.Confirmed
-                                 || a.Status == AppointmentStatus.Completed)
-                             && a.PaymentStatus == PaymentStatus.Paid);
+            var existing = await _context.Set<Conversation>()
+                .Where(c => c.PatientId == patientId && c.DoctorId == doctorId)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .Include(c => c.Messages)
+                .FirstOrDefaultAsync();
 
-            if (!appointments.Any())
-                throw new Exception("يجب حجز موعد ودفع قيمة الكشف أولاً قبل بدء المحادثة");
-
-            var conversations = await _unitOfWork.GetRepository<Conversation>()
-                .FindAsync(c => c.PatientId == patientId && c.DoctorId == doctorId);
-
-            var existing = conversations.FirstOrDefault();
             if (existing != null)
-                return MapToDto(existing);
+                return MapToDto(existing, currentUserId);
 
             var newConversation = new Conversation
             {
@@ -51,48 +45,55 @@ namespace Maw3ed.BLL.Services.Classes
             await _unitOfWork.GetRepository<Conversation>().AddAsync(newConversation);
             await _unitOfWork.SaveChangesAsync();
 
-            return MapToDto(newConversation);
+            var saved = await _context.Set<Conversation>()
+                .Where(c => c.Id == newConversation.Id)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .Include(c => c.Messages)
+                .FirstAsync();
+
+            return MapToDto(saved, currentUserId);
         }
 
-        public async Task<IEnumerable<ConversationDto>> GetPatientConversationsAsync(int patientId)
+        public async Task<IEnumerable<ConversationDto>> GetPatientConversationsAsync(int patientId, string currentUserId)
         {
-            var conversations = await _unitOfWork.GetRepository<Conversation>()
-                .FindAsync(c => c.PatientId == patientId);
+            var conversations = await _context.Set<Conversation>()
+                .Where(c => c.PatientId == patientId)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .Include(c => c.Messages)
+                .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.CreatedAt))
+                .ToListAsync();
 
-            return conversations.Select(c => MapToDto(c));
+            return conversations.Select(c => MapToDto(c, currentUserId));
         }
 
-        public async Task<IEnumerable<ConversationDto>> GetDoctorConversationsAsync(int doctorId)
+        public async Task<IEnumerable<ConversationDto>> GetDoctorConversationsAsync(int doctorId, string currentUserId)
         {
-            var conversations = await _unitOfWork.GetRepository<Conversation>()
-                .FindAsync(c => c.DoctorId == doctorId);
+            var conversations = await _context.Set<Conversation>()
+                .Where(c => c.DoctorId == doctorId)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .Include(c => c.Messages)
+                .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.CreatedAt))
+                .ToListAsync();
 
-            return conversations.Select(c => MapToDto(c));
+            return conversations.Select(c => MapToDto(c, currentUserId));
         }
 
         public async Task<MessageDto> SendMessageAsync(
             int conversationId, string senderUserId, SendMessageDto dto)
         {
-            var conversation = await _unitOfWork.GetRepository<Conversation>()
-                .GetByIdAsync(conversationId);
+            var conversation = await _context.Set<Conversation>()
+                .Where(c => c.Id == conversationId)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .FirstOrDefaultAsync();
 
             if (conversation == null)
                 throw new Exception("المحادثة مش موجودة");
 
             await EnsureUserInConversationAsync(conversation, senderUserId);
-
-            // If sender is the patient, verify they have a paid appointment with this doctor
-            var patient = await _unitOfWork.GetRepository<Patient>().GetByIdAsync(conversation.PatientId);
-            if (patient != null && patient.UserId == senderUserId)
-            {
-                var hasPaid = await _context.Appointments
-                    .AnyAsync(a => a.PatientId == conversation.PatientId
-                                && a.DoctorId == conversation.DoctorId
-                                && a.PaymentStatus == PaymentStatus.Paid);
-
-                if (!hasPaid)
-                    throw new Exception("يجب دفع قيمة الكشف أولاً قبل إرسال الرسائل");
-            }
 
             var message = new Message
             {
@@ -106,33 +107,23 @@ namespace Maw3ed.BLL.Services.Classes
             await _unitOfWork.GetRepository<Message>().AddAsync(message);
             await _unitOfWork.SaveChangesAsync();
 
-            return MapMessageToDto(message);
+            return MapMessageToDto(message, conversation, senderUserId);
         }
 
         public async Task<MessageDto> SendAttachmentAsync(
             int conversationId, string senderUserId,
             string attachmentUrl, string attachmentName, string attachmentType, string? caption)
         {
-            var conversation = await _unitOfWork.GetRepository<Conversation>()
-                .GetByIdAsync(conversationId);
+            var conversation = await _context.Set<Conversation>()
+                .Where(c => c.Id == conversationId)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .FirstOrDefaultAsync();
 
             if (conversation == null)
                 throw new Exception("المحادثة مش موجودة");
 
             await EnsureUserInConversationAsync(conversation, senderUserId);
-
-            // If sender is the patient, verify they have a paid appointment with this doctor
-            var patient = await _unitOfWork.GetRepository<Patient>().GetByIdAsync(conversation.PatientId);
-            if (patient != null && patient.UserId == senderUserId)
-            {
-                var hasPaid = await _context.Appointments
-                    .AnyAsync(a => a.PatientId == conversation.PatientId
-                                && a.DoctorId == conversation.DoctorId
-                                && a.PaymentStatus == PaymentStatus.Paid);
-
-                if (!hasPaid)
-                    throw new Exception("يجب دفع قيمة الكشف أولاً قبل إرسال الرسائل");
-            }
 
             var message = new Message
             {
@@ -149,13 +140,16 @@ namespace Maw3ed.BLL.Services.Classes
             await _unitOfWork.GetRepository<Message>().AddAsync(message);
             await _unitOfWork.SaveChangesAsync();
 
-            return MapMessageToDto(message);
+            return MapMessageToDto(message, conversation, senderUserId);
         }
 
         public async Task<IEnumerable<MessageDto>> GetMessagesAsync(int conversationId, string userId)
         {
-            var conversation = await _unitOfWork.GetRepository<Conversation>()
-                .GetByIdAsync(conversationId);
+            var conversation = await _context.Set<Conversation>()
+                .Where(c => c.Id == conversationId)
+                .Include(c => c.Doctor).ThenInclude(d => d!.User)
+                .Include(c => c.Patient).ThenInclude(p => p!.User)
+                .FirstOrDefaultAsync();
 
             if (conversation == null)
                 throw new Exception("المحادثة مش موجودة");
@@ -167,7 +161,7 @@ namespace Maw3ed.BLL.Services.Classes
 
             return messages
                 .OrderBy(m => m.CreatedAt)
-                .Select(m => MapMessageToDto(m));
+                .Select(m => MapMessageToDto(m, conversation, userId));
         }
 
         public async Task MarkMessagesAsReadAsync(int conversationId, string userId)
@@ -210,25 +204,51 @@ namespace Maw3ed.BLL.Services.Classes
                 throw new UnauthorizedAccessException("مالكش صلاحية الوصول للمحادثة دي");
         }
 
-        private ConversationDto MapToDto(Conversation c) => new ConversationDto
+        private ConversationDto MapToDto(Conversation c, string currentUserId)
         {
-            Id = c.Id,
-            PatientId = c.PatientId,
-            DoctorId = c.DoctorId,
-            Messages = c.Messages?.Select(m => MapMessageToDto(m)).ToList()
-                       ?? new List<MessageDto>()
-        };
+            var lastMessage = c.Messages?
+                .OrderByDescending(m => m.CreatedAt)
+                .FirstOrDefault();
 
-        private MessageDto MapMessageToDto(Message m) => new MessageDto
+            return new ConversationDto
+            {
+                Id = c.Id,
+                PatientId = c.PatientId,
+                DoctorId = c.DoctorId,
+                DoctorName = c.Doctor?.User != null
+                    ? $"{c.Doctor.User.FirstName} {c.Doctor.User.LastName}".Trim()
+                    : null,
+                DoctorImage = ImageUrlHelper.ToFullUrl(c.Doctor?.ImageProfile),
+                PatientName = c.Patient?.User != null
+                    ? $"{c.Patient.User.FirstName} {c.Patient.User.LastName}".Trim()
+                    : null,
+                LastMessage = lastMessage?.Content,
+                LastMessageAt = lastMessage?.CreatedAt,
+                UnreadCount = c.Messages?.Count(m => !m.IsRead) ?? 0,
+                Messages = c.Messages?.Select(m => MapMessageToDto(m, c, currentUserId)).ToList()
+                           ?? new List<MessageDto>()
+            };
+        }
+
+        private MessageDto MapMessageToDto(Message m, Conversation c, string currentUserId)
         {
-            Id = m.Id,
-            SenderUserId = m.SenderUserId,
-            Content = m.Content,
-            IsRead = m.IsRead,
-            CreatedAt = m.CreatedAt,
-            AttachmentUrl = m.AttachmentUrl,
-            AttachmentName = m.AttachmentName,
-            AttachmentType = m.AttachmentType
-        };
+            string role = "Patient";
+            if (c.Doctor?.User != null && c.Doctor.UserId == m.SenderUserId)
+                role = "Doctor";
+
+            return new MessageDto
+            {
+                Id = m.Id,
+                SenderUserId = m.SenderUserId,
+                SenderRole = role,
+                IsMine = m.SenderUserId == currentUserId,
+                Content = m.Content,
+                IsRead = m.IsRead,
+                CreatedAt = m.CreatedAt,
+                AttachmentUrl = ImageUrlHelper.ToFullUrl(m.AttachmentUrl),
+                AttachmentName = m.AttachmentName,
+                AttachmentType = m.AttachmentType
+            };
+        }
     }
 }

@@ -25,5 +25,6 @@ namespace Maw3ed.BLL.DTOs.AdminDashboard
         public double AverageRating { get; set; }
         public int TotalReviews { get; set; }
         public int TotalAppointments { get; set; }
+        public decimal Revenue { get; set; }
     }
 }
