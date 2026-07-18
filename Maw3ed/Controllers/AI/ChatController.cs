@@ -88,23 +88,47 @@ namespace Maw3ed.APIs.Controllers.AI
             return Ok(response);
         }
         [HttpGet("history")]
+        [HttpGet("history")]
         public async Task<IActionResult> GetHistory()
         {
             var patientId = await GetCurrentPatientIdAsync();
 
-            var messages = await _context.ChatMessages
-                .Where(m => m.ChatSession.PatientId == (patientId ?? 0))
-                .OrderBy(m => m.CreatedAt)
-                .Select(m => new ChatHistoryItem
-                {
-                    Sender = m.Sender,
-                    Message = m.Message,
-                    IsAiResponse = m.IsAiResponse,
-                    SentAt = m.CreatedAt
-                })
+            // 1. جلب البيانات والرسائل من الداتابيز أولاً
+            var sessionsData = await _context.ChatSessions
+                .Where(s => s.PatientId == (patientId ?? 0))
+                .Include(s => s.Messages)
+                .OrderByDescending(s => s.UpdatedAt)
                 .ToListAsync();
 
-            return Ok(messages);
+            // 2. عمل الـ Mapping وتوليد الـ Title تلقائياً في الـ Memory
+            var sessions = sessionsData.Select(s => {
+                // ترتيب الرسائل تصاعدياً لمعرفة أول رسالة
+                var orderedMessages = s.Messages.OrderBy(m => m.CreatedAt).ToList();
+
+                // البحث عن أول رسالة أرسلها المستخدم لتكون هي العنوان
+                var firstUserMessage = orderedMessages.FirstOrDefault(m => !m.IsAiResponse)?.Message;
+
+                // لو الرسالة طويلة، بنقصها ونأخذ أول 30 حرف فقط
+                var generatedTitle = !string.IsNullOrEmpty(firstUserMessage)
+                    ? (firstUserMessage.Length > 30 ? firstUserMessage.Substring(0, 30) + "..." : firstUserMessage)
+                    : "محادثة جديدة";
+
+                return new
+                {
+                    id = s.Id.ToString(),
+                    title = generatedTitle, // تم حل المشكلة هنا
+                    createdAt = s.CreatedAt,
+                    updatedAt = s.UpdatedAt,
+                    messages = orderedMessages.Select(m => new
+                    {
+                        role = m.IsAiResponse ? "assistant" : "user",
+                        content = m.Message,
+                        timestamp = m.CreatedAt
+                    }).ToList()
+                };
+            }).ToList();
+
+            return Ok(sessions);
         }
         private async Task<int?> GetCurrentPatientIdAsync()
         {
