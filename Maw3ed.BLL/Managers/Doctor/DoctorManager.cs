@@ -39,7 +39,7 @@ namespace Maw3ed.BLL
                 UserName = d.User?.UserName ?? " ",
                 FirstName = d.User?.FirstName,
                 LastName = d.User?.LastName,
-                ImageProfile = ImageUrlHelper.ToFullUrl(d.ImageProfile)
+                ImageProfile = ImageUrlHelper.ToFullUrl(d.User?.ProfilePictureUrl?? d.ImageProfile)
             });
         }
 
@@ -67,7 +67,7 @@ namespace Maw3ed.BLL
                 UserName = doctor.User?.UserName ?? "",
                 FirstName = doctor.User?.FirstName,
                 LastName = doctor.User?.LastName,
-                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.ImageProfile)
+                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.User?.ProfilePictureUrl ?? doctor.ImageProfile)
             };
         }
 
@@ -245,7 +245,7 @@ namespace Maw3ed.BLL
                 UserName = doctor.User?.UserName ?? "",
                 FirstName = doctor.User?.FirstName,
                 LastName = doctor.User?.LastName,
-                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.ImageProfile)
+                ImageProfile = ImageUrlHelper.ToFullUrl(doctor.User?.ProfilePictureUrl ?? doctor.ImageProfile)
             };
         }
 
