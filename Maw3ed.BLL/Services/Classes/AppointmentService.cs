@@ -406,6 +406,7 @@ namespace Maw3ed.BLL.Services.Classes
                 Notes           = a.Notes,
                 PatientId       = a.PatientId,
                 PatientName     = $"{a.Patient?.User?.FirstName} {a.Patient?.User?.LastName}",
+                PatientImageUrl = a.Patient?.User?.ProfilePictureUrl ?? string.Empty,
                 DoctorId        = a.DoctorId,
                 DoctorName      = $"{a.Doctor?.User?.FirstName} {a.Doctor?.User?.LastName}",
                 DoctorSpecialty = a.Doctor?.Department?.Name ?? string.Empty,
