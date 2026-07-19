@@ -27,22 +27,18 @@ public class ChatService : IChatService
 
     public async Task<ChatResponse> SendMessageAsync(ChatRequest request, int patientId)
     {
-        // هات جلسة الشات بتاعة المريض ده، أو اعمل واحدة جديدة لو أول مرة
+        // شيلنا الـ Guid.Parse خالص وبقينا بنقارن بالـ ToString() جوة قاعدة البيانات عشان تظبط في الحالتين
         var session = await _context.ChatSessions
-            .FirstOrDefaultAsync(s => s.PatientId == patientId);
+            .FirstOrDefaultAsync(s => s.Id.ToString() == request.SessionId && s.PatientId == patientId);
 
         if (session == null)
         {
-            session = new ChatSession
-            {
-                PatientId = patientId,
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.ChatSessions.Add(session);
-            await _context.SaveChangesAsync();
+            throw new Exception("Chat session not found.");
         }
 
-        // احفظ رسالة المريض
+        session.UpdatedAt = DateTime.UtcNow;
+
+        // 2. احفظ رسالة المريض جوة الـ Session المظبوطة
         _context.ChatMessages.Add(new ChatMessage
         {
             ChatSessionId = session.Id,
@@ -51,6 +47,8 @@ public class ChatService : IChatService
             IsAiResponse = false,
             CreatedAt = DateTime.UtcNow
         });
+
+        await _context.SaveChangesAsync(); // حفظ رسالة المستخدم أولاً
 
         var apiKey = _config["StudentBedrock:ApiKey"];
 
@@ -82,7 +80,7 @@ public class ChatService : IChatService
 
         var reply = result?.OutputText ?? "No response received.";
 
-        // احفظ رد الـ AI
+        // 3. احفظ رد الـ AI جوة نفس الـ Session
         _context.ChatMessages.Add(new ChatMessage
         {
             ChatSessionId = session.Id,
@@ -92,14 +90,13 @@ public class ChatService : IChatService
             CreatedAt = DateTime.UtcNow
         });
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(); // حفظ رد الـ AI وتعديل الـ Session
 
         return new ChatResponse
         {
             Reply = reply
         };
     }
-
     public async Task<string> AnalyzeMedicalReportAsync(string extractedText)
     {
         var apiKey = _config["StudentBedrock:ApiKey"];

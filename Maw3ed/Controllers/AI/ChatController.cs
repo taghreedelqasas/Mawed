@@ -35,15 +35,39 @@ namespace Maw3ed.APIs.Controllers.AI
             _environment = environment;
             _context = context;
         }
-
         [HttpPost]
-        // [EnableRateLimiting("chat")]
         public async Task<IActionResult> Chat([FromBody] ChatRequest request)
         {
             var patientId = await GetCurrentPatientIdAsync();
+            if (patientId == null)
+                return Unauthorized("User is not a valid patient.");
 
-            var response = await _chatService.SendMessageAsync(request, patientId ?? 0);
-            return Ok(response);
+            string activeSessionId = request.SessionId;
+
+            if (string.IsNullOrEmpty(activeSessionId))
+            {
+                var newSession = new ChatSession
+                {
+                    PatientId = patientId.Value,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _context.ChatSessions.AddAsync(newSession);
+                await _context.SaveChangesAsync(); // هنا الـ Id بيتولد في القاعدة تلقائياً
+
+                activeSessionId = newSession.Id.ToString(); // هيتحول لـ string كدة كدة
+            }
+
+            request.SessionId = activeSessionId;
+
+            var response = await _chatService.SendMessageAsync(request, patientId.Value);
+
+            return Ok(new
+            {
+                reply = response.Reply,
+                sessionId = activeSessionId
+            });
         }
 
         [HttpPost("analyze-pdf")]
