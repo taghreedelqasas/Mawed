@@ -92,39 +92,64 @@ namespace Maw3ed.APIs.Controllers.AI
         [HttpGet("history")]
         public async Task<IActionResult> GetHistory()
         {
-            var patientId = await GetCurrentPatientIdAsync();
-
-            var sessions = await _context.ChatSessions
-                .AsNoTracking() // لتحسين الأداء لأن البيانات للقراءة فقط
-                .Where(s => s.PatientId == (patientId ?? 0))
-                .OrderByDescending(s => s.UpdatedAt)
-                .Select(s => new
+            try
+            {
+                var patientId = await GetCurrentPatientIdAsync();
+                if (patientId == null)
                 {
-                    id = s.Id.ToString(),
-                    // تحديد العنوان مباشرة من قاعدة البيانات بـ Linq
-                    title = s.Messages
-                        .Where(m => !m.IsAiResponse)
+                    // لو المريض مش عامل تسجيل دخول أو التوكن مش مبعوت، بنرجع لستة فاضية بدل ما يضرب 500
+                    return Ok(new List<object>());
+                }
+
+                var sessionsData = await _context.ChatSessions
+                    .Where(s => s.PatientId == patientId.Value)
+                    .Include(s => s.Messages)
+                    .OrderByDescending(s => s.UpdatedAt)
+                    .ToListAsync();
+
+                var sessions = sessionsData.Select(s => {
+                    // ترتيب الرسائل مع الحماية من وجود Messages بـ null
+                    var orderedMessages = (s.Messages ?? new List<ChatMessage>())
                         .OrderBy(m => m.CreatedAt)
-                        .Select(m => m.Message)
-                        .FirstOrDefault() != null
-                            ? (s.Messages.Where(m => !m.IsAiResponse).OrderBy(m => m.CreatedAt).Select(m => m.Message).FirstOrDefault().Length > 30
-                                ? s.Messages.Where(m => !m.IsAiResponse).OrderBy(m => m.CreatedAt).Select(m => m.Message).FirstOrDefault().Substring(0, 30) + "..."
-                                : s.Messages.Where(m => !m.IsAiResponse).OrderBy(m => m.CreatedAt).Select(m => m.Message).FirstOrDefault())
-                            : "محادثة جديدة",
-                    createdAt = s.CreatedAt,
-                    updatedAt = s.UpdatedAt,
-                    messages = s.Messages
-                        .OrderBy(m => m.CreatedAt)
-                        .Select(m => new
+                        .ToList();
+
+                    // البحث عن أول رسالة للمستخدم مع الحماية من النصوص الفاضية
+                    var firstUserMessage = orderedMessages
+                        .FirstOrDefault(m => !m.IsAiResponse)?.Message;
+
+                    string generatedTitle = "محادثة جديدة";
+
+                    if (!string.IsNullOrEmpty(firstUserMessage))
+                    {
+                        var trimmedMessage = firstUserMessage.Trim();
+                        generatedTitle = trimmedMessage.Length > 30
+                            ? trimmedMessage.Substring(0, 30) + "..."
+                            : trimmedMessage;
+                    }
+
+                    return new
+                    {
+                        id = s.Id.ToString(),
+                        title = generatedTitle,
+                        createdAt = s.CreatedAt,
+                        updatedAt = s.UpdatedAt,
+                        messages = orderedMessages.Select(m => new
                         {
                             role = m.IsAiResponse ? "assistant" : "user",
-                            content = m.Message,
+                            content = m.Message ?? "", // حماية لو الكونتنت null
                             timestamp = m.CreatedAt
                         }).ToList()
-                })
-                .ToListAsync();
+                    };
+                }).ToList();
 
-            return Ok(sessions);
+                return Ok(sessions);
+            }
+            catch (Exception ex)
+            {
+                // عشان لو حصل أي خطأ تاني يظهرلك في الـ Console بتاع الباك إند وتعرفي سببه
+                Console.WriteLine($"Error in GetHistory: {ex.Message}");
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
         private async Task<int?> GetCurrentPatientIdAsync()
         {
