@@ -174,6 +174,11 @@ namespace Maw3ed.APIs
                 .GetSection("Cors:AllowedOrigins")
                 .Get<string[]>() ?? Array.Empty<string>();
 
+            if (!allowedOrigins.Contains("http://localhost:4200"))
+            {
+                allowedOrigins = allowedOrigins.Append("http://localhost:4200").ToArray();
+            }
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", policy =>
