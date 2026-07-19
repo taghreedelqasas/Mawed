@@ -222,6 +222,10 @@ namespace Maw3ed.BLL.Services.Classes
                 PatientName = c.Patient?.User != null
                     ? $"{c.Patient.User.FirstName} {c.Patient.User.LastName}".Trim()
                     : null,
+
+                PatientImage = c.Patient?.User != null
+            ? ImageUrlHelper.ToFullUrl(c.Patient.User.ProfilePictureUrl)
+            : null,
                 LastMessage = lastMessage?.Content,
                 LastMessageAt = lastMessage?.CreatedAt,
                 UnreadCount = c.Messages?.Count(m => !m.IsRead) ?? 0,

@@ -12,6 +12,7 @@ namespace Maw3ed.BLL.DTOs.ConversationDTOs
         public int PatientId { get; set; }
         public int DoctorId { get; set; }
         public List<MessageDto> Messages { get; set; }
+        public string? PatientImage { get; set; }
 
         public string? DoctorName { get; set; }
         public string? DoctorImage { get; set; }
