@@ -22,5 +22,9 @@ namespace Maw3ed.BLL.DTOs.AdminDashboard
         public double AverageRating { get; set; }
         public int TotalReviews { get; set; }
         public int TotalAppointments { get; set; }
+
+        public string? LicenseImage { get; set; }
+        public string? SSNImg { get; set; }
+        public string? CertificateImage { get; set; }
     }
 }

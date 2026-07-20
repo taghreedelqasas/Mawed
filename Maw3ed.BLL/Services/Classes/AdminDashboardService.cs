@@ -353,7 +353,10 @@ var totalCommission = await _context.Payments
                 IsVerified = doctor.IsVerified,
                 AverageRating = doctor.Reviews.Any() ? Math.Round(doctor.Reviews.Average(r => r.Rating), 1) : 0,
                 TotalReviews = doctor.Reviews.Count,
-                TotalAppointments = doctor.Availabilities.Count(a => a.Appointment != null)
+                TotalAppointments = doctor.Availabilities.Count(a => a.Appointment != null),
+                LicenseImage = doctor.LicenseImage,
+                SSNImg = doctor.SSNImage,
+                CertificateImage = doctor.CertificateImage
             };
         }
 
