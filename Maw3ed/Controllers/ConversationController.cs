@@ -291,7 +291,7 @@ namespace Maw3ed.APIs.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest("لازم تختار ملف");
 
-            var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png" };
+            var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".webm", ".mp3", ".m4a", ".ogg", ".wav" };
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!allowedExtensions.Contains(ext))
                 return BadRequest("نوع الملف مش مدعوم");
@@ -310,7 +310,21 @@ namespace Maw3ed.APIs.Controllers
                 }
 
                 var attachmentUrl = $"/uploads/chat-attachments/{uniqueFileName}";
-                var attachmentType = ext == ".pdf" ? "pdf" : "image";
+
+                // لازم نخزن الـ MIME type الحقيقي (image/png, audio/webm, application/pdf...)
+                // لأن الفرونت بيحدد isImage / isAudio بناءً على البادئة دي بالظبط
+                var attachmentType = ext switch
+                {
+                    ".pdf" => "application/pdf",
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    ".webm" => "audio/webm",
+                    ".mp3" => "audio/mpeg",
+                    ".m4a" => "audio/mp4",
+                    ".ogg" => "audio/ogg",
+                    ".wav" => "audio/wav",
+                    _ => file.ContentType ?? "application/octet-stream"
+                };
 
                 var message = await _conversationService.SendAttachmentAsync(
                     conversationId, userId, attachmentUrl, file.FileName, attachmentType, caption);
